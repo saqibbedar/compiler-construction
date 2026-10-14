@@ -1,0 +1,2 @@
+print("Hello, world")
+x: str = input("what's your name?")
