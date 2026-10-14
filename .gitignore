@@ -1,0 +1,13 @@
+*.exe
+*.pyc
+*.pyd
+*.bin       
+*.pkl
+
+**/.vscode/
+**/.idea/
+**/.venv/
+**/build/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
