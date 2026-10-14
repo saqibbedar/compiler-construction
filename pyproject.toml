@@ -1,0 +1,11 @@
+[project]
+name = "compiler-construction"
+version = "0.1.0"
+requires-python = ">=3.14"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "gitpython>=3.2.1",
+    "yachalk>=0.1.8",
+]

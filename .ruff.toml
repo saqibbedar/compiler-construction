@@ -1,0 +1,20 @@
+# Ruff configuration file
+target-version = "py314"
+
+# Set line length limit to 120 (more modern & forgiving than 88)
+line-length = 120
+
+# Exclude virtual environments and cache directories
+exclude = [
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".logs",
+]
+
+[lint]
+select = ["E", "F", "I"]    # E: errors, F: pyflakes, I: isort(import sorting)
+# Ignore line-too-long (E501) and module-import-not-at-top (E402 for notebooks)
+ignore = ["E501", "E402"]
