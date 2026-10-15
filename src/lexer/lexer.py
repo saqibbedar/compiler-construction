@@ -40,6 +40,14 @@ class Lexer:
                 self._advance()
                 continue
 
+            # 1b. singleline comment (#...)
+            if char == "#":
+                # Consume until physical newline or end of file
+
+                while self.position < len(self.source) and self.source[self.position] != "\n":
+                    self._advance()
+                continue
+
             # 2. Physical newline
             if char == "\n":
                 tokens.append(Token(TokenType.NEWLINE, "\n", self.line, self.column))
@@ -102,6 +110,30 @@ class Lexer:
             # 5. Operators with multi-char lookahead
             if char == "/":
                 col = self.column
+
+                # Multi-line block comment: /* ... */
+                if self._peek(1) == "*":
+                    start_line = self.line
+                    self._advance()  # consume '/'
+                    self._advance()  # consume '*'
+                    while self.position < len(self.source):
+                        if self.source[self.position] == "*" and self._peek(1) == "/":
+                            self._advance()  # consume '*'
+                            self._advance()  # consume '/'
+                            break
+                        self._advance()
+                    else:
+                        # Reached EOF without closing '*/'
+                        err = LexicalError(
+                            message="Unterminated block comment",
+                            lexeme="/*",
+                            line=start_line,
+                            column=col,
+                        )
+                        self.errors.append(err)
+                        tokens.append(Token(TokenType.ERROR, "/*", start_line, col))
+                    continue
+
                 if self._peek(1) == "/":
                     tokens.append(Token(TokenType.FLOOR_DIV, "//", self.line, col))
                     self._advance()
