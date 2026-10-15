@@ -4,7 +4,7 @@ from .errors import LexicalError
 from .tokens import KEYWORDS, Token, TokenType
 
 # Characters that safely delimit tokens and stop panic mode
-SYNCHRONIZERS = set(" \t\r\n()[]{}:,;=+-*/%<>")
+SYNCHRONIZERS = set(" \t\r\n()[]{}:,=+-*/%<>")
 
 """
 Lexer class
@@ -36,7 +36,7 @@ class Lexer:
             char: str = self.source[self.position]
 
             # 1. Skip spaces & carriage returns
-            if char in " \r":
+            if char in " \t\r":
                 self._advance()
                 continue
 
@@ -367,6 +367,10 @@ class Lexer:
         start: int = self.position
         line: int = self.line
         column: int = self.column
+
+        # 1. Always advance at least once to guarantee forward progress
+        self._advance()
+
         while self.position < len(self.source) and self.source[self.position] not in SYNCHRONIZERS:
             self._advance()
         lexeme = self.source[start : self.position]
