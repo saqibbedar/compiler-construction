@@ -4,7 +4,7 @@ from .errors import LexicalError
 from .tokens import KEYWORDS, Token, TokenType
 
 # Characters that safely delimit tokens and stop panic mode
-SYNCHRONIZERS = set(" \t\r\n()[]{}:,=+-*/%<>")
+SYNCHRONIZERS = set(" \t\r\n()[]{}:;,=+-*/%<>.")
 
 """
 Lexer class
@@ -312,57 +312,88 @@ class Lexer:
         return char
 
     def _identifier(self) -> Token:
-        """
-        Scan an identifier or keyword using Maximal Munch.
-        Grammar Rule:
-            IDENTIFIER = [A-Za-z_][A-Za-z0-9_]*
-        Process:
-            1. Greedily consumes letters, digits, and underscores.
-            2. Compares the resulting lexeme against the KEYWORDS dictionary.
-            3. Emits the specific keyword TokenType (e.g. IF, WHILE) if matched,
-               or defaults to TokenType.IDENTIFIER.
-        Returns:
-            A Token instance representing the identifier or keyword.
-        """
         start: int = self.position
         line: int = self.line
         column: int = self.column
+
+        # 1. Consume valid identifier characters: [A-Za-z_][A-Za-z0-9_]*
         while self.position < len(self.source):
             char: str = self.source[self.position]
             if not (char.isascii() and (char.isalnum() or char == "_")):
                 break
             self._advance()
+
+        # 2. Check for illegal characters glued to the identifier (e.g. _for$while, y$fn)
+        if self.position < len(self.source) and self.source[self.position] not in SYNCHRONIZERS:
+            # Hoard the illegal character(s) and rest of the token until a synchronizer
+            while self.position < len(self.source) and self.source[self.position] not in SYNCHRONIZERS:
+                self._advance()
+
+            lexeme = self.source[start : self.position]
+            err = LexicalError(
+                message=f"Invalid identifier containing illegal character: {lexeme!r}",
+                lexeme=lexeme,
+                line=line,
+                column=column,
+            )
+            self.errors.append(err)
+            return Token(TokenType.ERROR, lexeme, line, column)
+
+        # 3. Match against keywords; default to IDENTIFIER
         lexeme = self.source[start : self.position]
-        # Match against keywords; default to IDENTIFIER
         token_type = KEYWORDS.get(lexeme, TokenType.IDENTIFIER)
         return Token(type=token_type, lexeme=lexeme, line=line, column=column)
 
     def _integer_or_malformed(self) -> Token:
-        """
-        Scan an integer literal and detect invalid identifiers starting with digits.
-        Grammar Rules:
-            INTEGER = [0-9]+
-            INVALID_ID = [0-9]+[A-Za-z_][A-Za-z0-9_]* (e.g. 3y, 10var)
-        Process:
-            1. Consumes all consecutive digits.
-            2. Lookahead check: if immediately followed by an ASCII letter or '_',
-               this violates language naming rules (variables cannot start with digits).
-            3. On violation: enters panic mode, hoards the rest of the token until
-               a SYNCHRONIZER is reached, appends a LexicalError, and returns Token(ERROR).
-            4. Otherwise: returns a valid Token(INTEGER).
-        Returns:
-            A Token instance of TokenType.INTEGER or TokenType.ERROR.
-        """
         start: int = self.position
         line: int = self.line
         column: int = self.column
+
+        # 1. Consume integer part
         while (
             self.position < len(self.source)
             and self.source[self.position].isascii()
             and self.source[self.position].isdigit()
         ):
             self._advance()
-        # Malformed check: digits followed by letter/_ (e.g. 3y)
+
+        is_float = False
+
+        # 2. Check for fractional part: '.' followed by digit
+        # (Preserves '..' range operator so 1..10 is not broken)
+        if (
+            self.position < len(self.source)
+            and self.source[self.position] == "."
+            and self._peek(1).isdigit()
+        ):
+            is_float = True
+            self._advance()  # consume '.'
+            while (
+                self.position < len(self.source)
+                and self.source[self.position].isascii()
+                and self.source[self.position].isdigit()
+            ):
+                self._advance()
+
+        # 3. Detect malformed float with multiple dots: e.g. 7.34.4
+        if (
+            self.position < len(self.source)
+            and self.source[self.position] == "."
+            and self._peek(1) != "."  # not the start of a '..' range
+        ):
+            while self.position < len(self.source) and self.source[self.position] not in SYNCHRONIZERS:
+                self._advance()
+            lexeme = self.source[start : self.position]
+            err = LexicalError(
+                message=f"Malformed float literal with multiple decimal points: {lexeme!r}",
+                lexeme=lexeme,
+                line=line,
+                column=column,
+            )
+            self.errors.append(err)
+            return Token(TokenType.ERROR, lexeme, line, column)
+
+        # 4. Detect invalid identifier starting with digit: e.g. 3y, 7.34var
         if (
             self.position < len(self.source)
             and self.source[self.position].isascii()
@@ -379,7 +410,10 @@ class Lexer:
             )
             self.errors.append(err)
             return Token(TokenType.ERROR, lexeme, line, column)
-        return Token(TokenType.INTEGER, self.source[start : self.position], line, column)
+
+        lexeme = self.source[start : self.position]
+        token_type = TokenType.FLOAT if is_float else TokenType.INTEGER
+        return Token(token_type, lexeme, line, column)
 
     def _panic_recovery(self) -> Token:
         """

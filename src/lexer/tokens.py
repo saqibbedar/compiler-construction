@@ -20,6 +20,7 @@ class TokenType(IntEnum):
     # Basic / Structural
     IDENTIFIER = auto()
     INTEGER = auto()
+    FLOAT = auto()
     NEWLINE = auto()
     EOF = auto()
     ERROR = auto()
