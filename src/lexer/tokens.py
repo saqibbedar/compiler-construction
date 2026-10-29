@@ -17,10 +17,12 @@ Inheriting from IntEnum, its better in performance and balanced approach between
 
 
 class TokenType(IntEnum):
-    # Basic / Structural
+    # Basic / Structural & Literals
     IDENTIFIER = auto()
     INTEGER = auto()
     FLOAT = auto()
+    STRING = auto()
+    BOOL = auto()
     NEWLINE = auto()
     EOF = auto()
     ERROR = auto()
@@ -116,8 +118,11 @@ KEYWORDS: dict[str, TokenType] = {
     "class": TokenType.CLASS,
     "spec": TokenType.SPEC,
     "None": TokenType.NONE,
-    "true": TokenType.TRUE,
-    "false": TokenType.FALSE,
+    "none": TokenType.NONE,
+    "true": TokenType.BOOL,
+    "false": TokenType.BOOL,
+    "True": TokenType.BOOL,
+    "False": TokenType.BOOL,
     "input": TokenType.INPUT,
     "print": TokenType.PRINT,
     "and": TokenType.AND,

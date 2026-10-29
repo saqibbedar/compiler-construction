@@ -4,7 +4,7 @@ from .errors import LexicalError
 from .tokens import KEYWORDS, Token, TokenType
 
 # Characters that safely delimit tokens and stop panic mode
-SYNCHRONIZERS = set(" \t\r\n()[]{}:;,=+-*/%<>.")
+SYNCHRONIZERS = set(" \t\r\n()[]{}:,=+-*/%<>.")
 
 """
 Lexer class
@@ -21,6 +21,9 @@ class Lexer:
 
         # Error collector
         self.errors: list[LexicalError] = []
+
+        # Stack tracking brace depth inside backtick interpolation expressions
+        self.interpolation_brace_depths: list[int] = []
 
     # Main scanner function
     def scan_tokens(self) -> list[Token]:
@@ -76,11 +79,24 @@ class Lexer:
                 continue
 
             if char == "{":
+                if self.interpolation_brace_depths:
+                    self.interpolation_brace_depths[-1] += 1
                 tokens.append(Token(TokenType.LBRACE, "{", self.line, self.column))
                 self._advance()
                 continue
 
             if char == "}":
+                if self.interpolation_brace_depths:
+                    self.interpolation_brace_depths[-1] -= 1
+                    tokens.append(Token(TokenType.RBRACE, "}", self.line, self.column))
+                    self._advance()
+
+                    if self.interpolation_brace_depths[-1] == 0:
+                        self.interpolation_brace_depths.pop()
+                        # Exit expression mode; resume scanning subsequent backtick string chunk
+                        self._scan_backtick_chunk(tokens, is_opening=False)
+                    continue
+
                 tokens.append(Token(TokenType.RBRACE, "}", self.line, self.column))
                 self._advance()
                 continue
@@ -93,6 +109,16 @@ class Lexer:
             if char == ":":
                 tokens.append(Token(TokenType.COLON, ":", self.line, self.column))
                 self._advance()
+                continue
+
+            # Double and Single quoted strings (no interpolation)
+            if char in ('"', "'"):
+                tokens.append(self._string(quote=char))
+                continue
+
+            # Backtick strings (support interpolation)
+            if char == "`":
+                self._scan_backtick_chunk(tokens, is_opening=True)
                 continue
 
             # 4. Dot (.) and Range (..)
@@ -260,6 +286,17 @@ class Lexer:
             # 8. Panic Mode Fallback
             tokens.append(self._panic_recovery())
 
+        # Check if an interpolation was left unclosed at EOF
+        if self.interpolation_brace_depths:
+            err = LexicalError(
+                message="Unterminated string interpolation: missing '}'",
+                lexeme="",
+                line=self.line,
+                column=self.column,
+            )
+            self.errors.append(err)
+            tokens.append(Token(TokenType.ERROR, "", self.line, self.column))
+
         # Terminate a final non-empty statement even without a trailing
         # physical newline.
         # Trailing newline and EOF
@@ -274,6 +311,94 @@ class Lexer:
     # Internal methods
     # Cursor Movement & Lookahead Methods
     # =====================================================
+
+    def _string(self, quote: str) -> Token:
+        start: int = self.position
+        line: int = self.line
+        column: int = self.column
+
+        self._advance()  # consume opening quote (' or ")
+
+        while self.position < len(self.source):
+            char = self.source[self.position]
+
+            # 1. Escape sequences (\", \', \\, etc.)
+            if char == "\\":
+                self._advance()  # consume '\'
+                if self.position < len(self.source):
+                    self._advance()  # consume escaped char
+                continue
+
+            # 2. Matching closing quote
+            if char == quote:
+                self._advance()  # consume closing quote
+                lexeme = self.source[start : self.position]
+                return Token(TokenType.STRING, lexeme, line, column)
+
+            self._advance()
+
+        # Unterminated string reached EOF
+        lexeme = self.source[start : self.position]
+        err = LexicalError(
+            message=f"Unterminated string literal: {lexeme!r}",
+            lexeme=lexeme,
+            line=line,
+            column=column,
+        )
+        self.errors.append(err)
+        return Token(TokenType.ERROR, lexeme, line, column)
+
+    def _scan_backtick_chunk(self, tokens: list[Token], is_opening: bool) -> None:
+        start: int = self.position
+        line: int = self.line
+        column: int = self.column
+
+        if is_opening:
+            self._advance()  # consume opening '`'
+
+        while self.position < len(self.source):
+            char = self.source[self.position]
+
+            # 1. Escape sequences (\`, \{, \\, etc.)
+            if char == "\\":
+                self._advance()  # consume '\'
+                if self.position < len(self.source):
+                    self._advance()  # consume escaped char
+                continue
+
+            # 2. Closing backtick
+            if char == "`":
+                self._advance()  # consume closing '`'
+                lexeme = self.source[start : self.position]
+                tokens.append(Token(TokenType.STRING, lexeme, line, column))
+                return
+
+            # 3. Interpolation start: {expr}
+            if char == "{":
+                lexeme = self.source[start : self.position]
+                if lexeme:
+                    tokens.append(Token(TokenType.STRING, lexeme, line, column))
+
+                brace_line = self.line
+                brace_col = self.column
+                tokens.append(Token(TokenType.LBRACE, "{", brace_line, brace_col))
+                self._advance()  # consume '{'
+
+                self.interpolation_brace_depths.append(1)
+                return
+
+            self._advance()
+
+        # Unterminated backtick reached EOF
+        lexeme = self.source[start : self.position]
+        err = LexicalError(
+            message=f"Unterminated backtick string literal: {lexeme!r}",
+            lexeme=lexeme,
+            line=line,
+            column=column,
+        )
+        self.errors.append(err)
+        tokens.append(Token(TokenType.ERROR, lexeme, line, column))
 
     def _peek(self, offset: int = 1) -> str:
         """
@@ -361,11 +486,7 @@ class Lexer:
 
         # 2. Check for fractional part: '.' followed by digit
         # (Preserves '..' range operator so 1..10 is not broken)
-        if (
-            self.position < len(self.source)
-            and self.source[self.position] == "."
-            and self._peek(1).isdigit()
-        ):
+        if self.position < len(self.source) and self.source[self.position] == "." and self._peek(1).isdigit():
             is_float = True
             self._advance()  # consume '.'
             while (
