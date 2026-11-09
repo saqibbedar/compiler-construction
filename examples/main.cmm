@@ -40,6 +40,6 @@ for i in 0..10:
         x += 1
 
 # Arrow function
-add = (a: int, b: int): int => a + b
+add = fn(a: int, b: int): int => a + b
 
 print(greet("Bedar"))

@@ -95,6 +95,24 @@ class TokenType(IntEnum):
     RBRACE = auto()  # }
     COMMA = auto()  # ,
     COLON = auto()  # :
+
+    # 7. Arrows (two different tokens, never interchangeable)
+    #
+    # ARROW  (->)  "thin arrow": introduces the return type of a named function.
+    #                  fn add(a: int, b: int) -> int:
+    #              Lexeme is always the two characters '->'.
+    #
+    # FAT_ARROW (=>)  "fat arrow": separates what comes before from what it produces. Used in two places:
+    #   1. arrow functions (anonymous functions), which start with the 'fn' keyword. '=>' separates the
+    #      parameter list (and optional ': type' return annotation) from the one-expression body:
+    #          add = fn(a: int, b: int): int => a + b
+    #          double = fn(x) => x * 2
+    #          now = fn() => 42
+    #   2. match arms, where it separates the pattern from the arm's block:
+    #          case 1, 2 => print("low")
+    #   Lexeme is always the two characters '=>'. It is a single token, so 'fn(x)=>x' and 'fn(x) => x'
+    #   scan identically, and it is never confused with '>=' (GT_EQ) or '==' (EQ).
+    #   A lone '=' (ASSIGN) or '>' (GT) next to each other with whitespace between ('= >') are two tokens.
     ARROW = auto()  # ->
     FAT_ARROW = auto()  # =>
 

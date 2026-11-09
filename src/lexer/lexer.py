@@ -4,7 +4,8 @@ from .errors import LexicalError
 from .tokens import KEYWORDS, Token, TokenType
 
 # Characters that safely delimit tokens and stop panic mode
-SYNCHRONIZERS = set(" \t\r\n()[]{}:,=+-*/%<>.")
+# ('!' '#' ';' and the quote characters start a new token, so they must end an identifier or number)
+SYNCHRONIZERS = set(" \t\r\n()[]{}:,=+-*/%<>.!#;\"'`")
 
 """
 Lexer class
@@ -14,7 +15,8 @@ Lexer class
 class Lexer:
     # constructor
     def __init__(self, source: str) -> None:
-        self.source: str = source
+        # Drop a UTF-8 byte order mark (added by some Windows editors) so it is not lexed as a token
+        self.source: str = source.removeprefix("﻿")
         self.position: int = 0
         self.line: int = 1
         self.column: int = 1
@@ -333,7 +335,8 @@ class Lexer:
             tokens.append(Token(TokenType.ERROR, "", self.line, self.column))
 
         # Check if a grouping delimiter was left unclosed at EOF
-        if self.delimiter_depth > 0:
+        # (an unclosed interpolation brace is already reported above, so skip the duplicate)
+        if self.delimiter_depth > 0 and not self.interpolation_brace_depths:
             err = LexicalError(
                 message="Unclosed grouping delimiter at end of file",
                 lexeme="",
@@ -393,19 +396,19 @@ class Lexer:
         """
         Check if the block comment starting at start_idx has no code after it on the same line.
         """
-        end_idx = self.source.find("*/", start_idx + 2)
-        if end_idx == -1:
-            return False
-        after_comment = end_idx + 2
-        while after_comment < len(self.source):
-            ch = self.source[after_comment]
-            if ch in " \t\r":
-                after_comment += 1
-            elif ch == "\n":
-                return True
-            else:
+        # A line made only of block comments (optionally followed by a '#' comment) carries no code,
+        # so it must not take part in indentation handling
+        idx = start_idx
+        while True:
+            end_idx = self.source.find("*/", idx + 2)
+            if end_idx == -1:
                 return False
-        return True
+            idx = end_idx + 2
+            while idx < len(self.source) and self.source[idx] in " \t\r":
+                idx += 1
+            if self.source.startswith("/*", idx):
+                continue
+            return idx >= len(self.source) or self.source[idx] in "\n#"
 
     def _consume_blank_line(self) -> None:
         while self.position < len(self.source) and self.source[self.position] != "\n":
@@ -502,8 +505,17 @@ class Lexer:
         last_indent = self.indent_stack[-1]
 
         if current_indent > last_indent:
-            # 3. Check for unexpected multi-level indent jump (e.g. from 0 directly to 8)
-            if current_indent > last_indent + 4:
+            # 3. Check for indentation before the first statement, or a multi-level jump (e.g. 0 -> 8)
+            if not tokens:
+                err = LexicalError(
+                    message="IndentationError: unexpected indent before the first statement",
+                    lexeme=" " * current_indent,
+                    line=indent_line,
+                    column=indent_col,
+                )
+                self.errors.append(err)
+                tokens.append(Token(TokenType.ERROR, " " * current_indent, indent_line, indent_col))
+            elif current_indent > last_indent + 4:
                 err = LexicalError(
                     message=f"IndentationError: unexpected indent jump from {last_indent} to {current_indent} spaces",
                     lexeme=" " * current_indent,
@@ -532,7 +544,9 @@ class Lexer:
                 )
                 self.errors.append(err)
                 tokens.append(Token(TokenType.ERROR, " " * current_indent, indent_line, indent_col))
+                # Treat the odd level as a new one so INDENT/DEDENT stay balanced
                 self.indent_stack.append(current_indent)
+                tokens.append(Token(TokenType.INDENT, " " * current_indent, indent_line, indent_col))
 
     # =====================================================
     # Internal methods
@@ -562,9 +576,14 @@ class Lexer:
                 lexeme = self.source[start : self.position]
                 return Token(TokenType.STRING, lexeme, line, column)
 
+            # 3. Quoted strings are single-line: stop at the newline so one missing quote
+            # does not swallow the rest of the file (backtick strings may span lines)
+            if char == "\n":
+                break
+
             self._advance()
 
-        # Unterminated string reached EOF
+        # Unterminated string reached end of line or EOF
         lexeme = self.source[start : self.position]
         err = LexicalError(
             message=f"Unterminated string literal: {lexeme!r}",
@@ -724,17 +743,22 @@ class Lexer:
             ):
                 self._advance()
 
-        # 3. Detect malformed float with multiple dots: e.g. 7.34.4
+        # 3. Detect malformed float: extra decimal point (7.34.4) or no digits after the point (5.)
         if (
             self.position < len(self.source)
             and self.source[self.position] == "."
             and self._peek(1) != "."  # not the start of a '..' range
         ):
-            while self.position < len(self.source) and self.source[self.position] not in SYNCHRONIZERS:
+            # '.' is a synchronizer, so consume it explicitly (except when it begins a '..' range)
+            # or the rest of the bad literal would leak out as separate tokens
+            while self.position < len(self.source) and (
+                self.source[self.position] not in SYNCHRONIZERS
+                or (self.source[self.position] == "." and self._peek(1) != ".")
+            ):
                 self._advance()
             lexeme = self.source[start : self.position]
             err = LexicalError(
-                message=f"Malformed float literal with multiple decimal points: {lexeme!r}",
+                message=f"Malformed float literal: {lexeme!r}",
                 lexeme=lexeme,
                 line=line,
                 column=column,
