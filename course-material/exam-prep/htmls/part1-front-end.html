@@ -1,0 +1,2036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Part 1 — The Compiler Front End</title>
+<style>
+:root{
+  --paper:#fcfbf8; --card:#ffffff; --ink:#252320; --soft-ink:#5f594f; --faint:#8c857a;
+  --rule:#e7e2d7; --rule-soft:#f0ece3;
+  --blue:#3b5bdb;   --blue-bg:#f2f5ff;   --blue-line:#d2dafb;
+  --green:#2f7a4f;  --green-bg:#f1faf4;  --green-line:#cbe8d6;
+  --amber:#a9682a;  --amber-bg:#fff8ee;  --amber-line:#f0ddc2;
+  --rose:#b24444;   --rose-bg:#fff5f4;   --rose-line:#f5d5d2;
+  --violet:#6b4ba8; --violet-bg:#f8f4ff; --violet-line:#e2d8f7;
+  --code-bg:#f7f5ef; --maxw:730px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;font-size:17.5px;line-height:1.78}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px 140px}
+
+.masthead{padding:60px 0 34px;text-align:center}
+.masthead .tag{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);font-weight:700;margin:0 0 16px}
+h1{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:36px;line-height:1.15;letter-spacing:-.025em;margin:0 0 16px;font-weight:700}
+.masthead .sub{color:var(--soft-ink);margin:0 auto;max-width:34em;font-size:17px}
+.rule-orn{display:flex;align-items:center;gap:12px;justify-content:center;margin:34px 0 0}
+.rule-orn span{height:1px;width:70px;background:var(--rule)}
+.rule-orn b{color:var(--blue);font-size:13px}
+
+h2{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:26px;line-height:1.25;letter-spacing:-.02em;font-weight:700;margin:0 0 10px}
+.chapmark{margin:76px 0 0;padding:26px 0 0;border-top:2px solid var(--rule)}
+.chapmark .n{display:inline-block;font-family:ui-sans-serif,system-ui,sans-serif;
+  font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;
+  color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-line);
+  padding:4px 11px;border-radius:30px;margin-bottom:16px}
+.chapmark .lec{display:inline-block;margin-left:8px;font-family:ui-sans-serif,system-ui,sans-serif;
+  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;
+  color:var(--faint);background:var(--rule-soft);border:1px solid var(--rule);
+  padding:4px 11px;border-radius:30px}
+h3{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:19.5px;font-weight:700;letter-spacing:-.012em;margin:44px 0 6px}
+h4{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:15px;font-weight:700;margin:30px 0 2px;color:var(--soft-ink)}
+p{margin:16px 0}
+ul,ol{margin:16px 0;padding-left:24px}
+li{margin:9px 0}
+
+code,pre,.m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.85em;border:1px solid var(--rule-soft)}
+pre{background:var(--code-bg);border:1px solid var(--rule);border-radius:12px;
+  padding:18px 20px;overflow-x:auto;font-size:13.5px;line-height:1.62;margin:22px 0;color:#33302a}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+pre.big{font-size:14.5px;line-height:1.7}
+
+.card{background:var(--card);border:1px solid var(--rule);border-radius:14px;
+  padding:20px 22px;margin:26px 0;box-shadow:0 1px 2px rgba(60,50,30,.035)}
+.card > :first-child{margin-top:0}
+.card > :last-child{margin-bottom:0}
+.lbl{display:block;font-family:ui-sans-serif,system-ui,sans-serif;font-size:10.5px;
+  font-weight:800;letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px}
+.def{background:var(--blue-bg);border-color:var(--blue-line)}     .def .lbl{color:var(--blue)}
+.why{background:var(--violet-bg);border-color:var(--violet-line)} .why .lbl{color:var(--violet)}
+.good{background:var(--green-bg);border-color:var(--green-line)}  .good .lbl{color:var(--green)}
+.warn{background:var(--amber-bg);border-color:var(--amber-line)}  .warn .lbl{color:var(--amber)}
+.bad{background:var(--rose-bg);border-color:var(--rose-line)}     .bad .lbl{color:var(--rose)}
+.card pre{background:rgba(255,255,255,.72)}
+
+.plain{border-left:3px solid var(--blue-line);padding:4px 0 4px 16px;margin:20px 0;
+  color:var(--soft-ink);font-size:16.5px}
+.plain b{color:var(--blue);font-family:ui-sans-serif,system-ui,sans-serif;font-size:11px;
+  letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:3px}
+
+.breath{text-align:center;margin:44px 0;color:var(--faint);font-size:14.5px;font-style:italic}
+.breath::before,.breath::after{content:"·  ";letter-spacing:.3em}
+
+.steps{counter-reset:s;list-style:none;padding-left:0;margin:22px 0}
+.steps > li{counter-increment:s;position:relative;padding-left:44px;margin:18px 0}
+.steps > li::before{content:counter(s);position:absolute;left:0;top:1px;width:28px;height:28px;
+  border-radius:50%;background:var(--card);color:var(--blue);border:1.5px solid var(--blue-line);
+  font-family:ui-sans-serif,system-ui,sans-serif;font-size:13px;font-weight:700;
+  display:flex;align-items:center;justify-content:center}
+
+nav.toc{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:22px 24px;margin:40px 0}
+nav.toc .lbl{color:var(--blue)}
+nav.toc ol{counter-reset:t;list-style:none;padding:0;margin:0;font-size:16px}
+nav.toc li{counter-increment:t;margin:0;border-bottom:1px solid var(--rule-soft)}
+nav.toc li:last-child{border-bottom:0}
+nav.toc a{display:flex;gap:14px;align-items:baseline;padding:9px 2px;color:var(--ink);text-decoration:none}
+nav.toc a::before{content:counter(t);font-family:ui-monospace,monospace;font-size:12px;color:var(--faint);min-width:18px}
+nav.toc a:hover{color:var(--blue)}
+nav.toc .grp{font-family:ui-sans-serif,system-ui,sans-serif;font-size:10.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--faint);font-weight:700;padding:16px 2px 6px;border-bottom:1px solid var(--rule-soft)}
+nav.toc .grp:first-child{padding-top:4px}
+
+table{border-collapse:separate;border-spacing:0;width:100%;margin:24px 0;font-size:14.5px;
+  font-family:ui-sans-serif,system-ui,sans-serif;background:var(--card);
+  border:1px solid var(--rule);border-radius:12px;overflow:hidden}
+th,td{padding:10px 13px;text-align:left;vertical-align:top;border-bottom:1px solid var(--rule-soft)}
+tr:last-child td{border-bottom:0}
+th{background:#faf8f3;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--soft-ink);font-weight:700}
+td code{font-size:.9em}
+
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:24px 0}
+.cols .col{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:16px 18px}
+.cols .col h5{margin:0 0 10px;font-family:ui-sans-serif,system-ui,sans-serif;font-size:13px;
+  letter-spacing:.06em;text-transform:uppercase;font-weight:700}
+.cols .col pre{margin:0;background:transparent;border:0;padding:0;font-size:12.8px}
+.col.ok h5{color:var(--green)} .col.ok{background:var(--green-bg);border-color:var(--green-line)}
+.col.no h5{color:var(--rose)} .col.no{background:var(--rose-bg);border-color:var(--rose-line)}
+@media(max-width:620px){.cols{grid-template-columns:1fr}}
+
+details{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:14px 18px;margin:18px 0}
+details[open]{border-color:var(--blue-line);background:var(--blue-bg)}
+summary{cursor:pointer;font-family:ui-sans-serif,system-ui,sans-serif;font-size:15.5px;font-weight:600}
+summary::marker{color:var(--blue)}
+details .ans{margin-top:14px;padding-top:14px;border-top:1px dashed var(--rule)}
+details .ans p:first-child{margin-top:0}
+details pre{background:rgba(255,255,255,.72)}
+
+.gloss{color:var(--faint);font-style:italic}
+footer{margin-top:80px;padding-top:26px;border-top:2px solid var(--rule);color:var(--faint);font-size:14.5px}
+
+@media(max-width:600px){
+  body{font-size:16.5px;line-height:1.75}
+  h1{font-size:28px} h2{font-size:22px} h3{font-size:18px}
+  pre{font-size:12px;padding:14px 15px} pre.big{font-size:12.5px}
+  .wrap{padding:0 17px 110px}
+  table{font-size:13.5px} th,td{padding:8px 10px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="masthead">
+  <p class="tag">Compiler Construction · Part 1 of 2 · Lectures 1–9</p>
+  <h1>The Compiler<br>Front End</h1>
+  <p class="sub">From "what is a compiler" to a working scanner. Every term defined before use, code first, prose only where it earns its place.</p>
+  <div class="rule-orn"><span></span><b>❧</b><span></span></div>
+</div>
+
+<div class="card why">
+  <span class="lbl">The two documents</span>
+<pre><code>PART 1  (this file)   lectures 1–9
+        how a compiler is built, how a language is DEFINED,
+        and how the SCANNER turns characters into tokens
+
+PART 2                lectures 13–15
+        grammars, ambiguity, PARSERS,
+        left recursion and left factoring</code></pre>
+  <p>Read one chapter, then stop. Each is short on purpose. Nothing appears before it has been explained.</p>
+</div>
+
+<nav class="toc">
+  <span class="lbl">Contents</span>
+  <div class="grp">The shape of a compiler · lectures 1–3</div>
+  <ol>
+    <li><a href="#c1">What a compiler is</a></li>
+    <li><a href="#c2">The phases</a></li>
+    <li><a href="#c3">Front end: scanner and parser</a></li>
+    <li><a href="#c4">Intermediate representation</a></li>
+    <li><a href="#c5">The back end</a></li>
+    <li><a href="#c6">The middle end and three passes</a></li>
+  </ol>
+  <div class="grp">Defining a language · lectures 4–7</div>
+  <ol start="7">
+    <li><a href="#c7">Syntax, semantics, metalanguage</a></li>
+    <li><a href="#c8">BNF</a></li>
+    <li><a href="#c9">A trivial language</a></li>
+    <li><a href="#c10">BNF for expressions</a></li>
+    <li><a href="#c11">A 20-step derivation</a></li>
+    <li><a href="#c12">What BNF buys you</a></li>
+    <li><a href="#c13">EBNF</a></li>
+    <li><a href="#c14">Syntax diagrams</a></li>
+    <li><a href="#c15">The Chomsky hierarchy</a></li>
+    <li><a href="#c16">Grammar as a tuple</a></li>
+  </ol>
+  <div class="grp">The scanner · lectures 8–9</div>
+  <ol start="17">
+    <li><a href="#c17">Regular expressions for tokens</a></li>
+    <li><a href="#c18">Finite automata, DFA and NFA</a></li>
+    <li><a href="#c19">The scanner DFA</a></li>
+    <li><a href="#c20">Table-driven automaton</a></li>
+    <li><a href="#c21">A hand-written scanner</a></li>
+    <li><a href="#c22">Token, lexeme, pattern, attribute</a></li>
+    <li><a href="#c23">The symbol table</a></li>
+    <li><a href="#c24">Longest match</a></li>
+    <li><a href="#c25">Lexical errors and panic mode</a></li>
+    <li><a href="#c26">Your assignment</a></li>
+    <li><a href="#c27">Cheat sheet</a></li>
+  </ol>
+</nav>
+
+<!-- ═══════════════ 1 ═══════════════ -->
+<div class="chapmark" id="c1"><span class="n">Chapter 1</span><span class="lec">Lecture 1 · 08 Sep</span>
+<h2>What a compiler is</h2></div>
+
+<pre class="big"><code>  input  ──▶  ┌──────────┐  ──▶  output
+   (your      │ COMPILER │      (machine
+    code)     └──────────┘        code)</code></pre>
+
+<pre><code>  inside it:
+
+   source ──▶ ┌──────────┐ ──IR──▶ ┌─────────┐ ──▶ machine
+    code      │ FRONT END│         │BACK END │       code
+              └──────────┘         └─────────┘</code></pre>
+
+<div class="card def">
+  <span class="lbl">Definition — the two halves</span>
+<pre style="margin:0"><code>FRONT END   deals with the USER PROGRAM
+            · lexical analysis
+            · syntactic analysis      ◀── the major focus of this course
+
+BACK END    generates MACHINE CODE</code></pre>
+</div>
+
+<h3>Compiler vs interpreter</h3>
+
+<table>
+  <tr><th></th><th>Compiler</th><th>Interpreter</th></tr>
+  <tr><td>When it runs</td><td>once, before you run the program</td><td>every time, while the program runs</td></tr>
+  <tr><td>Output</td><td>a machine-code file</td><td>no file — it executes directly</td></tr>
+  <tr><td>Speed of the program</td><td>fast (translation already done)</td><td>slower (translating as it goes)</td></tr>
+  <tr><td>Errors</td><td>all reported before running</td><td>found when that line is reached</td></tr>
+</table>
+
+<div class="card def">
+  <span class="lbl">Definition — cross compiler</span>
+  <p>A <strong>cross compiler</strong> runs on one kind of machine but produces machine code for a <em>different</em> kind.</p>
+<pre style="margin:10px 0 0"><code>compiler runs on:   your laptop        (x86)
+code produced for:  a phone chip       (ARM)
+
+why: the phone may be too small or too slow
+     to run a compiler itself</code></pre>
+</div>
+
+<p class="breath">end of chapter 1</p>
+
+<!-- ═══════════════ 2 ═══════════════ -->
+<div class="chapmark" id="c2"><span class="n">Chapter 2</span><span class="lec">Lecture 2 · 10 Sep</span>
+<h2>The phases</h2></div>
+
+<pre class="big"><code>┌─────────────────── FRONT END ────────────────────┐
+│                                                  │
+│  Lexical      ──▶   Syntax      ──▶   Semantic   │
+│  Analysis           Analysis          Analysis   │
+│                                                  │
+│  (uses FA)          (uses CFG)                   │
+└──────────────────────────────────────────────────┘
+                      │
+                      │  IR
+                      ▼
+┌─────────────────── BACK END ─────────────────────┐
+│                                                  │
+│  Intermediate   ──▶  Code      ──▶   Code        │
+│  Code                Generation      Optimizer   │
+│  Optimization                                    │
+└──────────────────────────────────────────────────┘</code></pre>
+
+<p class="plain"><b>Two abbreviations used above</b><code>FA</code> = finite automaton [a machine with a fixed set of states that reads one character at a time]. &nbsp;<code>CFG</code> = context-free grammar [a set of rules describing how legal programs are built — Part 2, chapter 2].</p>
+
+<h3>What each phase does</h3>
+
+<div class="card def">
+  <span class="lbl">1 — Lexical analysis</span>
+<pre style="margin:0"><code>also called:  SCANNING
+done by:      the SCANNER
+deals with:   WORDS
+
+valid words are extracted as TOKENS</code></pre>
+</div>
+
+<div class="card def">
+  <span class="lbl">2 — Syntax analysis</span>
+<pre style="margin:0"><code>also called:  PARSING
+done by:      the PARSER
+checks:       whether the tokens (words) are
+              according to the GRAMMAR</code></pre>
+</div>
+
+<div class="card def">
+  <span class="lbl">3 — Semantic analysis</span>
+<pre style="margin:0"><code>checks:       MEANING
+              type checking</code></pre>
+</div>
+
+<h3>Identifiers</h3>
+
+<pre><code>user-defined names  ──▶  IDENTIFIER  (a name)
+
+         variable name
+         constant
+         class
+         struct</code></pre>
+
+<p class="plain"><b>The analogy to keep</b>Reading English does the same three jobs: letters → words (scanner), words → legal sentence (parser), sentence → meaning (semantics). A sentence can be grammatically perfect and meaningless — which is exactly why the last two are separate phases.</p>
+
+<p class="breath">end of chapter 2</p>
+
+<!-- ═══════════════ 3 ═══════════════ -->
+<div class="chapmark" id="c3"><span class="n">Chapter 3</span><span class="lec">Lecture 3 · 15 Sep</span>
+<h2>Front end: scanner and parser</h2></div>
+
+<pre class="big"><code>the front end SPLITS INTO TWO PARTS
+
+ source  ──▶ ┌─────────┐ ──tokens──▶ ┌────────┐ ──IR──▶
+  code       │ SCANNER │             │ PARSER │
+             └─────────┘             └────────┘
+                   ↘                      ↙
+                      ▼  errors  ▼</code></pre>
+
+<div class="card def">
+  <span class="lbl">The split</span>
+<pre style="margin:0"><code>SCANNER   converting CHARACTERS into TOKENS
+
+PARSER    reads TOKENS, generates IR</code></pre>
+</div>
+
+<h3>What the scanner actually produces</h3>
+
+<pre class="big"><code>the scanner MAPS CHARACTERS INTO TOKENS
+       — the basic unit of syntax
+
+   x = x + y
+
+becomes
+
+   ⟨id, x⟩  =  ⟨id, x⟩  +  ⟨id, y⟩</code></pre>
+
+<p class="plain"><b>Read that notation</b><code>⟨id, x⟩</code> is a pair: the token's <em>kind</em> (<code>id</code>, an identifier) and its <em>value</em> (the name <code>x</code>). The parser mostly cares about the kind; the value is carried along for later phases.</p>
+
+<h3>What the parser recognizes</h3>
+
+<pre><code>the parser RECOGNIZES CONTEXT-FREE SYNTAX
+
+⟨expr⟩ ::= ⟨expr⟩ ⟨op⟩ ⟨term⟩ | ⟨term⟩
+⟨term⟩ ::= ⟨number⟩ | ⟨id⟩
+⟨op⟩   ::= + | -
+
+short form:   E → E OP T | T</code></pre>
+
+<p>That notation has a name — <strong>Backus Naur Form (BNF)</strong> — and chapter 8 covers it properly. For now just read <code>::=</code> as "can be replaced by" and <code>|</code> as "or".</p>
+
+<h4>Parse tree for <code>x + y − 2</code></h4>
+
+<pre><code>                expr
+             ╱   │   ╲
+         expr    op    term
+          │      │      │
+         term    −   ⟨num, 2⟩
+       ╱  │  ╲
+   expr   op   term
+     │    │     │
+   term   +  ⟨id, y⟩
+     │
+ ⟨id, x⟩</code></pre>
+
+<p class="plain"><b>Two words from the margin</b><code>LM derivation</code> = leftmost derivation, <code>RM derivation</code> = rightmost. Both are covered in Part 2, chapter 3 — they are just two orders of applying the same rules.</p>
+
+<h3>The tools</h3>
+
+<pre><code>LEX    generates a scanner for you, from regular expressions
+YACC   generates a parser for you, from a grammar
+bison  the modern free version of YACC</code></pre>
+
+<p class="breath">end of chapter 3</p>
+
+<!-- ═══════════════ 4 ═══════════════ -->
+<div class="chapmark" id="c4"><span class="n">Chapter 4</span><span class="lec">Lecture 3 · 15 Sep</span>
+<h2>Intermediate representation</h2></div>
+
+<div class="card def">
+  <span class="lbl">Definition — IR</span>
+  <p><strong>Intermediate representation (IR)</strong> is the form the program takes <em>between</em> the front end and the back end. It is not source code and not machine code.</p>
+</div>
+
+<div class="card why">
+  <span class="lbl">Why bother with a middle form?</span>
+<pre style="margin:10px 0"><code>WITHOUT an IR:
+   3 languages × 4 machines  =  12 whole compilers
+
+WITH an IR:
+   3 front ends + 4 back ends  =  7 pieces</code></pre>
+  <p>The IR is the meeting point. Add a new language, write one front end. Add a new chip, write one back end.</p>
+</div>
+
+<h3>The example from your notes</h3>
+
+<pre class="big"><code>   a + b - c * d
+
+drawn as a tree:
+
+              ( − )
+            ╱       ╲
+         ( + )       ( * )
+         ╱   ╲       ╱   ╲
+        a     b     c     d
+
+written flat (postfix):   a b + c d * −</code></pre>
+
+<p class="plain"><b>Reading postfix</b>Operators come <em>after</em> their operands. <code>a b +</code> means "add a and b". Then <code>c d *</code> means "multiply c and d". Then the final <code>−</code> subtracts the second result from the first. No brackets are ever needed — the order is already fixed by the writing.</p>
+
+<h3>The AST</h3>
+
+<div class="card def">
+  <span class="lbl">Definition — abstract syntax tree</span>
+  <p>An <strong>AST</strong> is the parse tree with the clutter removed — no helper non-terminals, no brackets, just operators and operands.</p>
+  <p>Your notes: <em>"AST is often used as IR b/w front end and backend."</em></p>
+</div>
+
+<div class="cols">
+  <div class="col">
+    <h5>Parse tree</h5>
+<pre><code>      ⟨expr⟩
+     ╱   │  ╲
+ ⟨term⟩  +  ⟨term⟩
+    │         │
+⟨primary⟩ ⟨primary⟩
+    │         │
+    a         b</code></pre>
+  </div>
+  <div class="col">
+    <h5>AST</h5>
+<pre><code>      ( + )
+      ╱   ╲
+     a     b</code></pre>
+  </div>
+</div>
+
+<p>Same information, far less of it. The AST is what later phases actually walk.</p>
+
+<p class="breath">end of chapter 4</p>
+
+<!-- ═══════════════ 5 ═══════════════ -->
+<div class="chapmark" id="c5"><span class="n">Chapter 5</span><span class="lec">Lecture 3 · 15 Sep</span>
+<h2>The back end</h2></div>
+
+<pre class="big"><code>  IR ──▶ ┌─────────────┐ ──▶ ┌─────────────┐ ──▶ machine
+         │ INSTRUCTION │     │  REGISTER   │       code
+         │  SELECTION  │     │ ALLOCATION  │
+         └─────────────┘     └─────────────┘
+                   ↘            ↙
+                      ▼ errors ▼</code></pre>
+
+<div class="card def">
+  <span class="lbl">What the back end must do</span>
+  <ul>
+    <li>translate IR into machine code</li>
+    <li>choose an instruction for each IR operation</li>
+    <li>decide what to keep in registers at each point</li>
+    <li>ensure conformance with system interfaces</li>
+  </ul>
+</div>
+
+<h3>Instruction selection</h3>
+
+<pre><code>goal:  produce COMPACT, FAST code
+       use the available ADDRESSING MODES</code></pre>
+
+<p class="plain"><b>Addressing mode</b>[the different ways an instruction can say <em>where</em> its data is] — a value written directly in the instruction, a value in a register, a value in memory at an address, a value at "register plus offset", and so on. Picking the right one shortens the code.</p>
+
+<h3>Register allocation</h3>
+
+<div class="card def">
+  <span class="lbl">Definition — register</span>
+  <p>A <strong>register</strong> is a tiny, extremely fast storage slot inside the CPU. A machine has only a handful — perhaps 16 or 32. Main memory is vast but hundreds of times slower.</p>
+</div>
+
+<pre><code>the three facts from your notes:
+
+ · have a value in a register WHEN IT IS USED
+ · LIMITED RESOURCES
+ · optimal allocation is DIFFICULT
+       — it is done through the GRAPH COLORING PROBLEM</code></pre>
+
+<div class="card why">
+  <span class="lbl">Why graph colouring?</span>
+<pre style="margin:10px 0"><code>draw one NODE per variable
+draw an EDGE between two variables that are
+    "alive at the same time" (both still needed)
+
+now COLOUR the nodes so that no two joined
+    nodes share a colour
+
+one colour = one register</code></pre>
+  <p>Two variables joined by an edge cannot share a register, because both are still needed. Finding the fewest colours is a famously hard problem — hence "optimal allocation is difficult".</p>
+</div>
+
+<h3>Why the machine's size matters</h3>
+
+<pre><code>16 bit  ──▶  32 bit OS  ──▶  64 bit machine
+                 ↘
+                   BACKWARD COMPATIBILITY
+
+what changes with the machine:
+
+   register length         (64 bit machine)
+   accumulator size
+   word size
+   instruction set         (32 bit OS / 64 bit OS)</code></pre>
+
+<p class="plain"><b>Backward compatibility</b>A 64-bit machine still runs 32-bit programs. That is a deliberate design promise, and it is why instruction sets keep growing rather than being replaced.</p>
+
+<p class="breath">end of chapter 5</p>
+
+<!-- ═══════════════ 6 ═══════════════ -->
+<div class="chapmark" id="c6"><span class="n">Chapter 6</span><span class="lec">Lecture 3 · 15 Sep</span>
+<h2>The middle end and three passes</h2></div>
+
+<pre class="big"><code>TRADITIONAL THREE-PASS COMPILER
+
+ source  ┌──────────┐  IR  ┌──────────┐  IR  ┌─────────┐  target
+  code ─▶│ FRONT END│ ────▶│MIDDLE END│ ────▶│ BACK END│ ──▶
+         └──────────┘      └──────────┘      └─────────┘
+               ↘                │                ↙
+                      ▼  errors  ▼</code></pre>
+
+<pre><code>· THREE TIMES go through the user code
+
+· code improvement ANALYZES and CHANGES the IR
+      goal: reduce RUNTIME
+      cost: the COMPILER BECOMES SLOW</code></pre>
+
+<div class="card why">
+  <span class="lbl">The trade that is being made</span>
+<pre style="margin:10px 0"><code>compile time   ▲ slower
+run time       ▼ faster</code></pre>
+  <p>You compile once and run many times, so spending compiler time to save runtime is usually worth it. This is why a release build takes longer than a debug build.</p>
+</div>
+
+<h3>The middle end (optimizer)</h3>
+
+<pre><code>· modern optimizers are usually built as A SET OF PASSES
+
+· typical passes:
+      constant propagation
+      common sub-expression elimination</code></pre>
+
+<div class="card def">
+  <span class="lbl">Those two passes, in code</span>
+<pre style="margin:10px 0"><code>CONSTANT PROPAGATION
+
+   before            after
+   x = 5;            x = 5;
+   y = x + 3;        y = 8;      ← computed at compile time</code></pre>
+<pre style="margin:10px 0 0"><code>COMMON SUB-EXPRESSION ELIMINATION
+
+   before                  after
+   a = b * c + 1;          t = b * c;
+   d = b * c + 2;          a = t + 1;
+        ───┬───            d = t + 2;
+   computed twice          computed once</code></pre>
+</div>
+
+<p class="breath">end of chapter 6 — the architecture is done. Now: how a language is defined.</p>
+
+<!-- ═══════════════ 7 ═══════════════ -->
+<div class="chapmark" id="c7"><span class="n">Chapter 7</span><span class="lec">Lecture 4 · 17 Sep</span>
+<h2>Syntax, semantics, metalanguage</h2></div>
+
+<p class="plain"><b>Why this lecture exists</b>Defining a programming language precisely is <em>important to users of the language and to the compiler writer</em>. The user needs to know what is legal; the compiler writer needs something exact enough to build from.</p>
+
+<div class="card def">
+  <span class="lbl">Definition — syntax and semantics</span>
+<pre style="margin:0"><code>SYNTAX     defines the SEQUENCE OF CHARACTERS
+           that could form a VALID PROGRAM
+
+SEMANTICS  the MEANING of those programs</code></pre>
+</div>
+
+<pre><code>  x = y + ;        syntax error    — shape is wrong
+
+  x = y + z;       syntax fine
+                   semantics wrong IF y was never declared</code></pre>
+
+<h3>Why not just describe it in English?</h3>
+
+<pre><code>a programming language defined using NATURAL LANGUAGE
+is AMBIGUOUS
+
+      ⇓
+
+use a FORMAL APPROACH</code></pre>
+
+<div class="card bad">
+  <span class="lbl">The problem with English</span>
+  <p>"The loop runs until the counter reaches ten." Does it run <em>at</em> ten or stop before? Two compiler writers read the same sentence and build two different languages. A formal notation has exactly one reading.</p>
+</div>
+
+<div class="card def">
+  <span class="lbl">Definition — metalanguage</span>
+  <p>A <strong>metalanguage</strong> is a language used to describe another language.</p>
+<pre style="margin:10px 0 0"><code>it must define:   the language
+                  its presentation
+                  its valid words
+                  its statements</code></pre>
+</div>
+
+<h3>The five stages of the course</h3>
+
+<pre class="big"><code>1st   define the language
+2nd   Regular Expressions + Finite Automata
+3rd   implement the SCANNER
+4th   CFG  (on paper)
+5th   implement the PARSER
+            (recursive descent / LL parsers)</code></pre>
+
+<p>You are currently finishing stage 5. Part 2 of this guide is stages 4 and 5.</p>
+
+<p class="breath">end of chapter 7</p>
+
+<!-- ═══════════════ 8 ═══════════════ -->
+<div class="chapmark" id="c8"><span class="n">Chapter 8</span><span class="lec">Lecture 4 · 17 Sep</span>
+<h2>BNF</h2></div>
+
+<div class="card def">
+  <span class="lbl">Definition — Backus Naur Form</span>
+  <p><strong>BNF</strong> is the metalanguage used to define programming-language syntax. Named after John Backus and Peter Naur, who created it for <strong>ALGOL</strong> — hence "the ALGOL family language".</p>
+<pre style="margin:10px 0 0"><code>simple  &  powerful</code></pre>
+</div>
+
+<h3>The three ingredients</h3>
+
+<pre class="big"><code>a RULE defines a SYMBOL
+
+TERMINAL       a symbol that appears in the final program
+               and is never replaced
+               e.g.  +   (   while   5
+
+NON-TERMINAL   a name for a structure; it MUST be replaced
+               e.g.  ⟨expr⟩   ⟨term⟩   ⟨digit⟩
+
+START SYMBOL   the one non-terminal you begin from</code></pre>
+
+<table>
+  <tr><th>Symbol</th><th>Say it as</th></tr>
+  <tr><td><code>::=</code></td><td>"can be replaced by"</td></tr>
+  <tr><td><code>|</code></td><td>"or"</td></tr>
+  <tr><td><code>⟨ ⟩</code></td><td>wraps a non-terminal, so you can tell it from a terminal</td></tr>
+</table>
+
+<p class="plain"><b>Spot the terminals</b>In <code>⟨digit⟩ ::= 0|1|2|3|4|5|6|7|8|9</code> every alternative is a terminal — nothing on the right gets replaced further. That is what makes it a stopping rule.</p>
+
+<p class="breath">end of chapter 8</p>
+
+<!-- ═══════════════ 9 ═══════════════ -->
+<div class="chapmark" id="c9"><span class="n">Chapter 9</span><span class="lec">Lecture 4 · 17 Sep</span>
+<h2>A trivial language</h2></div>
+
+<p>Before any expression grammar, your lecture builds a grammar for toy English. It is the gentlest possible way in.</p>
+
+<pre class="big"><code>⟨sentence⟩  ::= ⟨subject⟩ ⟨verb⟩ ⟨object⟩
+⟨subject⟩   ::= ⟨article⟩ ⟨noun⟩
+⟨object⟩    ::= ⟨article⟩ ⟨noun⟩ | ⟨article⟩ ⟨adjective⟩ ⟨noun⟩
+⟨article⟩   ::= a | the
+⟨verb⟩      ::= watches | hears | likes
+⟨noun⟩      ::= man | woman
+⟨adjective⟩ ::= red | blue</code></pre>
+
+<h4>Build a sentence</h4>
+
+<pre><code>⟨sentence⟩
+⇒ ⟨subject⟩ ⟨verb⟩ ⟨object⟩
+⇒ ⟨article⟩ ⟨noun⟩ ⟨verb⟩ ⟨object⟩
+⇒ the ⟨noun⟩ ⟨verb⟩ ⟨object⟩
+⇒ the man ⟨verb⟩ ⟨object⟩
+⇒ the man watches ⟨object⟩
+⇒ the man watches ⟨article⟩ ⟨adjective⟩ ⟨noun⟩
+⇒ the man watches a ⟨adjective⟩ ⟨noun⟩
+⇒ the man watches a red ⟨noun⟩
+⇒ the man watches a red woman          ✓ all terminals</code></pre>
+
+<div class="card good">
+  <span class="lbl">Two things this already shows</span>
+  <ol style="margin:0">
+    <li>A grammar generates a <strong>set</strong> of sentences, not one. Count the choices: 2 articles × 2 nouns × 3 verbs × (2×2 + 2×2×2) = lots.</li>
+    <li>Grammar does not care about sense. <em>"the woman hears a blue man"</em> is perfectly legal here. That is the semantics phase's problem, not the parser's.</li>
+  </ol>
+</div>
+
+<p class="plain"><b>The margin note on that page</b>Your notes mark <em>"7th — semantic"</em> beside ⟨sentence⟩. That is the reminder that meaning is checked by a later phase; the grammar alone cannot do it.</p>
+
+<p class="breath">end of chapter 9</p>
+
+<!-- ═══════════════ 10 ═══════════════ -->
+<div class="chapmark" id="c10"><span class="n">Chapter 10</span><span class="lec">Lecture 4 · 17 Sep</span>
+<h2>BNF for expressions</h2></div>
+
+<p>Now the real one. This grammar appears again and again all the way to the end of the course.</p>
+
+<pre class="big"><code>⟨expr⟩    ::= ⟨term⟩ | ⟨expr⟩ + ⟨term⟩ | ⟨expr⟩ − ⟨term⟩
+⟨term⟩    ::= ⟨factor⟩ | ⟨term⟩ * ⟨factor⟩ | ⟨term⟩ / ⟨factor⟩
+⟨factor⟩  ::= ⟨integer⟩ | ( ⟨expr⟩ )
+⟨integer⟩ ::= ⟨digit⟩ | ⟨integer⟩ ⟨digit⟩
+⟨digit⟩   ::= 0|1|2|3|4|5|6|7|8|9</code></pre>
+
+<div class="card def">
+  <span class="lbl">Read it one line at a time</span>
+<pre style="margin:0"><code>line 1   an expression is:  a term
+                         or an expression PLUS a term
+                         or an expression MINUS a term
+
+line 2   a term is:  a factor
+                  or a term TIMES a factor
+                  or a term DIVIDED BY a factor
+
+line 3   a factor is:  an integer
+                    or a bracketed expression
+
+line 4   an integer is:  one digit
+                      or an integer followed by a digit
+
+line 5   a digit is one of the ten characters</code></pre>
+</div>
+
+<h3>Line 4 is worth a second look</h3>
+
+<pre><code>⟨integer⟩ ::= ⟨digit⟩ | ⟨integer⟩ ⟨digit⟩
+
+build 507:
+
+⟨integer⟩
+⇒ ⟨integer⟩ ⟨digit⟩
+⇒ ⟨integer⟩ ⟨digit⟩ ⟨digit⟩
+⇒ ⟨digit⟩ ⟨digit⟩ ⟨digit⟩
+⇒ 5 ⟨digit⟩ ⟨digit⟩
+⇒ 5 0 ⟨digit⟩
+⇒ 5 0 7            ✓</code></pre>
+
+<p class="plain"><b>Why a rule can mention itself</b>One short rule generates numbers of <em>any</em> length. That is recursion [a rule that refers back to itself], and it is the single reason a grammar can describe infinitely many programs with finitely many rules.</p>
+
+<h3>The target expressions</h3>
+
+<pre><code>from your notes:
+
+   2 + 3 + 4 / 5
+   2 + 3 * ( 4 − 567 )</code></pre>
+
+<details>
+  <summary>Drill — is <code>2 + + 3</code> derivable from this grammar?</summary>
+  <div class="ans">
+    <p><strong>No.</strong> After <code>⟨expr⟩ + </code> the grammar demands a <code>⟨term⟩</code>, and no rule for <code>⟨term⟩</code> can start with <code>+</code> — it must reach <code>⟨factor⟩</code>, which is either an integer or an opening bracket. So the string is a syntax error, which is exactly the answer a parser should give.</p>
+  </div>
+</details>
+
+<p class="breath">end of chapter 10</p>
+
+<!-- ═══════════════ 11 ═══════════════ -->
+<div class="chapmark" id="c11"><span class="n">Chapter 11</span><span class="lec">Lecture 5 · 22 Sep</span>
+<h2>A 20-step derivation</h2></div>
+
+<p>Your lecture derives <code>2 + 3 + 4 / 5</code> in full. Here it is with the rule used at each step written beside it — the notes leave that for you to work out.</p>
+
+<pre><code> 1   ⟨expr⟩
+ 2   ⟨expr⟩ + ⟨term⟩                       expr → expr + term
+ 3   ⟨expr⟩ + ⟨term⟩ + ⟨term⟩              expr → expr + term  (again)
+ 4   ⟨term⟩ + ⟨term⟩ + ⟨term⟩              expr → term
+ 5   ⟨factor⟩ + ⟨term⟩ + ⟨term⟩            term → factor
+ 6   ⟨integer⟩ + ⟨term⟩ + ⟨term⟩           factor → integer
+ 7   ⟨digit⟩ + ⟨term⟩ + ⟨term⟩             integer → digit
+ 8   2 + ⟨term⟩ + ⟨term⟩                   digit → 2
+ 9   2 + ⟨factor⟩ + ⟨term⟩                 term → factor
+10   2 + ⟨integer⟩ + ⟨term⟩                factor → integer
+11   2 + ⟨digit⟩ + ⟨term⟩                  integer → digit
+12   2 + 3 + ⟨term⟩                        digit → 3
+13   2 + 3 + ⟨term⟩ / ⟨factor⟩             term → term / factor
+14   2 + 3 + ⟨factor⟩ / ⟨factor⟩           term → factor
+15   2 + 3 + ⟨integer⟩ / ⟨factor⟩          factor → integer
+16   2 + 3 + ⟨digit⟩ / ⟨factor⟩            integer → digit
+17   2 + 3 + 4 / ⟨factor⟩                  digit → 4
+18   2 + 3 + 4 / ⟨integer⟩                 factor → integer
+19   2 + 3 + 4 / ⟨digit⟩                   integer → digit
+20   2 + 3 + 4 / 5                         digit → 5       ✓</code></pre>
+
+<div class="card good">
+  <span class="lbl">Notice what the grammar forced</span>
+  <p>At step 13 the <code>/</code> appeared <em>inside</em> a <code>⟨term⟩</code>, never at the <code>⟨expr⟩</code> level. That is not a choice the writer made — <code>⟨expr⟩</code> has no rule containing <code>/</code>. The layering does it automatically.</p>
+  <p>This is the mechanism Part 2, chapter 6 analyses in full.</p>
+</div>
+
+<h3>The bottom-up approach</h3>
+
+<p>Same grammar, opposite direction. Your notes work <code>a * b + c</code> upward:</p>
+
+<pre><code>  a   *   b   +   c           start at the TOKENS
+
+  a   *   b   +   ⟨primary⟩
+  a   *   ⟨primary⟩ + ⟨primary⟩
+  ⟨primary⟩ * ⟨primary⟩ + ⟨primary⟩
+  ⟨term⟩ * ⟨primary⟩ + ⟨term⟩
+  ⟨term⟩ + ⟨term⟩
+  ⟨expression⟩ + ⟨term⟩
+  ⟨expression⟩                 ✓ reached the start symbol</code></pre>
+
+<p class="plain"><b>Two directions, one tree</b>Top-down starts at <code>⟨expr⟩</code> and works toward the tokens. Bottom-up starts at the tokens and works toward <code>⟨expr⟩</code>. They build the same tree from opposite ends. Part 2, chapter 9.</p>
+
+<p class="breath">end of chapter 11</p>
+
+<!-- ═══════════════ 12 ═══════════════ -->
+<div class="chapmark" id="c12"><span class="n">Chapter 12</span><span class="lec">Lecture 5 · 22 Sep</span>
+<h2>What BNF buys you</h2></div>
+
+<p>Your notes list four properties. They are the reason BNF is worth learning rather than inventing your own notation.</p>
+
+<div class="card good">
+  <span class="lbl">1 — No upper limit on length</span>
+  <p><em>"There is no upper limit to the length of expressions generated by these particular rules."</em></p>
+<pre style="margin:10px 0 0"><code>⟨expr⟩ → ⟨expr⟩ + ⟨term⟩
+       → ⟨expr⟩ + ⟨term⟩ + ⟨term⟩
+       → ⟨expr⟩ + ⟨term⟩ + ⟨term⟩ + ⟨term⟩  …</code></pre>
+</div>
+
+<div class="card good">
+  <span class="lbl">2 — It uses recursion</span>
+  <p>Property 1 exists <em>because of</em> this one. A rule that mentions its own left-hand side can be applied forever.</p>
+</div>
+
+<div class="card good">
+  <span class="lbl">3 — It supports operator precedence</span>
+  <p>And the rule for getting it right, from your notes:</p>
+<pre style="margin:10px 0 0"><code>PLACE HIGH-PRECEDENCE OPERATORS
+LOWER DOWN IN THE BNF</code></pre>
+<pre style="margin:10px 0 0"><code>⟨expr⟩   + −        ← loosest,  highest in the grammar
+⟨term⟩   * /
+⟨factor⟩ atoms      ← tightest, lowest in the grammar</code></pre>
+</div>
+
+<div class="card good">
+  <span class="lbl">4 — It expresses associativity</span>
+  <p>Which side of the rule carries the recursion decides how <code>a − b − c</code> groups. Part 2, chapter 7 does this in full.</p>
+</div>
+
+<h3>Parse tree and AST for <code>a * b + c</code></h3>
+
+<div class="cols">
+  <div class="col">
+    <h5>Parse tree</h5>
+<pre><code>        ⟨expr⟩
+      ╱    │   ╲
+  ⟨expr⟩   +  ⟨term⟩
+     │           │
+  ⟨term⟩     ⟨primary⟩
+  ╱  │  ╲        │
+⟨term⟩ * ⟨primary⟩
+  │        │     c
+⟨prim⟩     b
+  │
+  a</code></pre>
+  </div>
+  <div class="col">
+    <h5>AST</h5>
+<pre><code>      ( + )
+      ╱   ╲
+   ( * )    c
+   ╱   ╲
+  a     b</code></pre>
+  </div>
+</div>
+
+<p>Both say <code>(a*b) + c</code>. The AST just says it with eight fewer nodes.</p>
+
+<p class="breath">end of chapter 12</p>
+
+<!-- ═══════════════ 13 ═══════════════ -->
+<div class="chapmark" id="c13"><span class="n">Chapter 13</span><span class="lec">Lecture 7 · 29 Sep</span>
+<h2>EBNF</h2></div>
+
+<div class="card def">
+  <span class="lbl">Definition — Extended Backus Naur Form</span>
+  <p><strong>EBNF</strong> is BNF with extra shorthand added, so that common patterns — "optional", "repeated" — do not need a recursive rule of their own.</p>
+</div>
+
+<h3>The metasymbols</h3>
+
+<table>
+  <tr><th>Symbol</th><th>Meaning</th></tr>
+  <tr><td><code>⟨ ⟩</code></td><td><strong>removed</strong> — EBNF does not use angle brackets</td></tr>
+  <tr><td><code>" "</code></td><td>for a <strong>terminal</strong></td></tr>
+  <tr><td><code>( )</code></td><td>for <strong>grouping</strong></td></tr>
+  <tr><td><code>[ ]</code></td><td><strong>optional</strong> — zero or one</td></tr>
+  <tr><td><code>{ }</code></td><td>for <strong>many</strong> — the <code>*</code> of regular expressions, i.e. closure</td></tr>
+</table>
+
+<p class="plain"><b>Closure</b>[repeat as many times as you like, including zero times]. <code>{ digit }</code> means no digits, one digit, or fifty digits.</p>
+
+<h3>The same expression grammar in both forms</h3>
+
+<div class="cols">
+  <div class="col">
+    <h5>BNF</h5>
+<pre><code>expr = term
+     | expr "+" term
+     | expr "−" term
+
+term = factor
+     | term "*" factor
+     | term "/" factor
+
+integer = digit
+        | integer digit</code></pre>
+  </div>
+  <div class="col ok">
+    <h5>EBNF</h5>
+<pre><code>expr = term
+       { ("+"|"−") term }
+
+term = factor
+       { ("*"|"/") factor }
+
+factor  = integer | "(" expr ")"
+
+integer = digit { digit }
+
+digit = "0"|"1"|"2"|"3"|"4"
+       |"5"|"6"|"7"|"8"|"9"</code></pre>
+  </div>
+</div>
+
+<div class="card good">
+  <span class="lbl">What was gained</span>
+<pre style="margin:0"><code>BNF    integer = digit | integer digit
+                          ──────┬──────
+                          needs RECURSION
+
+EBNF   integer = digit { digit }
+                        ───┬───
+                     just REPETITION</code></pre>
+  <p>Shorter, and — importantly for later — it has no left recursion, which is the bug Part 2, chapter 11 is about.</p>
+</div>
+
+<h3>The <code>+</code> vs <code>*</code> question from your margin</h3>
+
+<pre><code>{ X }       zero or more     the * of regular expressions
+X { X }     one  or more     the + of regular expressions
+
+so:   integer = digit { digit }    needs AT LEAST ONE digit  ✓
+      integer = { digit }          would allow the EMPTY string  ✗</code></pre>
+
+<details>
+  <summary>Drill — write "an optional minus sign, then one or more digits" in EBNF.</summary>
+  <div class="ans">
+<pre><code>number = [ "−" ] digit { digit }
+         └──┬──┘ └──────┬──────┘
+          zero or one   one or more</code></pre>
+  </div>
+</details>
+
+<p class="breath">end of chapter 13</p>
+
+<!-- ═══════════════ 14 ═══════════════ -->
+<div class="chapmark" id="c14"><span class="n">Chapter 14</span><span class="lec">Lecture 7 · 29 Sep</span>
+<h2>Syntax diagrams</h2></div>
+
+<div class="card def">
+  <span class="lbl">Definition</span>
+  <p>A <strong>syntax diagram</strong> is a <em>graphical representation of syntax</em>. A complete syntax definition is made up of a <em>set</em> of syntax diagrams — one per non-terminal, each with its own diagram.</p>
+</div>
+
+<pre class="big"><code>HOW TO READ ONE
+
+  enter at the left, follow an arrow, leave at the right
+  anything you pass through is part of the construct
+
+  ( oval )     a TERMINAL     — write it exactly
+  [ box  ]     a NON-TERMINAL — go read its own diagram</code></pre>
+
+<h3>The examples from your notes</h3>
+
+<h4>Unsigned number</h4>
+
+<pre><code>            ┌──▶( + )──┐
+   ──────────┤          ├──▶[ Unsigned Number ]──▶
+            └──▶( − )──┘
+                  ▲
+            an optional sign</code></pre>
+
+<h4>The if statement</h4>
+
+<pre><code>  ──▶( if )──▶( ( )──▶[ Conditional expression ]──▶( ) )──▶
+                                                        │
+              ┌─────────────────────────────────────────┘
+              ▼
+        [ Statement ]──┬──────────────────────────▶
+                       │
+                       └──▶( else )──▶[ Statement ]──▶</code></pre>
+
+<p class="plain"><b>Read the branch</b>After the first <code>[Statement]</code> the line splits: one path leaves immediately (no else), the other goes through <code>else</code> and a second statement. That fork <em>is</em> the optional else — and it is exactly the dangling-else problem that Part 2, chapter 15 solves.</p>
+
+<h4>Other diagrams the lecture names</h4>
+
+<pre><code>Constant Identifier
+Character String
+Null statement          ← a path that passes through nothing</code></pre>
+
+<div class="card why">
+  <span class="lbl">Diagram vs EBNF</span>
+<pre style="margin:10px 0 0"><code>EBNF      ifstmt = "if" "(" cond ")" stmt [ "else" stmt ]
+
+diagram   the same thing, drawn
+
+a LOOP in the diagram  ≡  { } in EBNF
+a BYPASS arrow         ≡  [ ] in EBNF</code></pre>
+</div>
+
+<p class="breath">end of chapter 14</p>
+
+<!-- ═══════════════ 15 ═══════════════ -->
+<div class="chapmark" id="c15"><span class="n">Chapter 15</span><span class="lec">Lecture 7 · 29 Sep</span>
+<h2>The Chomsky hierarchy</h2></div>
+
+<pre class="big"><code>Type 3  —  Regular Expressions, Finite Automata
+Type 2  —  Context-Free Grammar
+Type 1  —  Context Sensitive
+Type 0  —  Free grammar, Unrestricted grammar</code></pre>
+
+<pre><code>    ┌──────────────── Type 0 ─────────────────┐
+    │   ┌──────────── Type 1 ─────────────┐   │
+    │   │   ┌──────── Type 2 ────────┐    │   │
+    │   │   │   ┌──── Type 3 ───┐    │    │   │
+    │   │   │   └───────────────┘    │    │   │
+    │   │   └────────────────────────┘    │   │
+    │   └─────────────────────────────────┘   │
+    └─────────────────────────────────────────┘
+
+    nested = each type INCLUDES the ones inside it
+    Type 3 is the WEAKEST, Type 0 the STRONGEST</code></pre>
+
+<div class="card def">
+  <span class="lbl">The shape of the rules</span>
+<pre style="margin:0"><code>TYPE 3  REGULAR
+        A → a B      or      A → a
+        one non-terminal, always at the END
+
+TYPE 2  CONTEXT FREE
+        A → B C
+        ONE non-terminal on the LEFT, anything on the right
+
+TYPE 1  CONTEXT SENSITIVE
+        α A β → α X β
+        A may be replaced ONLY when α is in front
+        and β is trailing
+
+TYPE 0  UNRESTRICTED
+        anything → anything</code></pre>
+</div>
+
+<h3>Why "context sensitive" has that name</h3>
+
+<pre><code>CONTEXT FREE          A → BC
+                      replace A ANYWHERE.
+                      Its surroundings are IRRELEVANT.
+
+CONTEXT SENSITIVE     α A β → α X β
+                      A becomes X ONLY IF
+                      α sits in front and β behind.
+                      The SURROUNDINGS DECIDE.</code></pre>
+
+<p class="plain"><b>Your notes' wording</b><em>"A changes if A has α front and β trailing"</em> — exactly right. The α and β are not consumed or changed; they are the <em>condition</em> under which A may change.</p>
+
+<div class="card why">
+  <span class="lbl">Where your course sits</span>
+<pre style="margin:10px 0"><code>Type 3  →  the SCANNER      (chapters 17–25)
+Type 2  →  the PARSER       (Part 2)
+Type 1  →  not used — too slow to parse
+Type 0  →  not used — may never finish at all</code></pre>
+  <p>More power is not better. Type 3 is weak but blazingly fast, so tokens go there. Type 2 is strong enough for nesting and still fast, so structure goes there. Beyond that, parsing stops being practical.</p>
+</div>
+
+<p class="breath">end of chapter 15</p>
+
+<!-- ═══════════════ 16 ═══════════════ -->
+<div class="chapmark" id="c16"><span class="n">Chapter 16</span><span class="lec">Lecture 7 · 29 Sep</span>
+<h2>Grammar as a tuple</h2></div>
+
+<pre class="big"><code>the GRAMMAR (G) of a language is defined as a TUPLE
+
+        G = ( N , T , S , P )
+
+N   NON-TERMINAL
+T   TERMINAL
+S   START SYMBOL
+P   PRODUCTION RULE</code></pre>
+
+<p class="plain"><b>Tuple</b>[an ordered group of things — here, four of them. Writing it this way means "a grammar is exactly these four parts, nothing more".]</p>
+
+<h3>Worked on a grammar you already know</h3>
+
+<pre><code>⟨expr⟩   ::= ⟨term⟩ | ⟨expr⟩ + ⟨term⟩
+⟨term⟩   ::= ⟨factor⟩ | ⟨term⟩ * ⟨factor⟩
+⟨factor⟩ ::= ⟨digit⟩ | ( ⟨expr⟩ )
+⟨digit⟩  ::= 0|1|2|…|9</code></pre>
+
+<table>
+  <tr><th>Part</th><th>Value</th></tr>
+  <tr><td><strong>N</strong></td><td><code>{ expr, term, factor, digit }</code></td></tr>
+  <tr><td><strong>T</strong></td><td><code>{ + , * , ( , ) , 0,1,2,…,9 }</code></td></tr>
+  <tr><td><strong>S</strong></td><td><code>expr</code></td></tr>
+  <tr><td><strong>P</strong></td><td>the four rules above</td></tr>
+</table>
+
+<div class="card good">
+  <span class="lbl">The exam habit worth building</span>
+  <p>Given any grammar, be able to list N, T, S, P in ten seconds. Non-terminals are whatever appears on a left-hand side; terminals are everything else on the right; the start symbol is normally the first rule's left side.</p>
+</div>
+
+<details>
+  <summary>Drill — give G = (N,T,S,P) for <code>S → ( S ) | x</code>.</summary>
+  <div class="ans">
+<pre><code>N = { S }
+T = { ( , ) , x }
+S = S
+P = { S → ( S ) ,  S → x }</code></pre>
+  </div>
+</details>
+
+<p class="breath">end of chapter 16 — theory done. Now build the scanner.</p>
+
+<!-- ═══════════════ 17 ═══════════════ -->
+<div class="chapmark" id="c17"><span class="n">Chapter 17</span><span class="lec">Lecture 8 · 01 Oct</span>
+<h2>Regular expressions for tokens</h2></div>
+
+<p class="plain"><b>The lecture's title line</b><em>"A complete practical approach to Compiler Construction"</em> — from here on, everything is buildable.</p>
+
+<h3>The numeric-constant syntax</h3>
+
+<pre class="big"><code>digit  ::= [0-9]
+digits ::= digit+
+number ::= digits ( . digits )? ( [eE] (+|−)? digits )?</code></pre>
+
+<div class="card def">
+  <span class="lbl">Every symbol in that, glossed</span>
+<pre style="margin:0"><code>[0-9]      a CHARACTER CLASS — any one character in the range
++          ONE OR MORE of the thing before it
+?          ZERO OR ONE — i.e. optional
+( )        GROUPING
+|          OR
+.          a literal dot here (the decimal point)</code></pre>
+</div>
+
+<h4>Read line 3 aloud</h4>
+
+<pre><code>number ::= digits ( . digits )? ( [eE] (+|−)? digits )?
+           ──┬───   └────┬────┘   └──────────┬───────┘
+          required    optional            optional
+                     fraction            exponent
+
+matches:   36
+           36.7
+           3.6e−2
+           3E+10
+
+rejects:   .5          (no digits before the dot)
+           36.         (dot with no digits after)
+           9.36.7      (two dots)</code></pre>
+
+<h3>More regular expressions</h3>
+
+<table>
+  <tr><th>RE</th><th>Meaning</th></tr>
+  <tr><td><code>[abc]+</code></td><td>one or more characters, each of them <code>a</code>, <code>b</code> or <code>c</code></td></tr>
+  <tr><td><code>[abc]*</code></td><td>the same, but zero of them is also allowed</td></tr>
+  <tr><td><code>[0-9]+</code></td><td>one or more digits — any whole number</td></tr>
+  <tr><td><code>[1-9][0-9]*</code></td><td>a number with no leading zero</td></tr>
+  <tr><td><code>[a-zA-Z][a-zA-Z0-9_]*</code></td><td>an identifier: starts with a letter, then letters, digits or underscores</td></tr>
+</table>
+
+<div class="card good">
+  <span class="lbl">Why the identifier pattern is written that way</span>
+<pre style="margin:0"><code>[a-zA-Z]              first character: a LETTER ONLY
+[a-zA-Z0-9_]*         after that: letters, digits, underscore
+
+so   count2   ✓        starts with a letter
+     2count   ✗        starts with a digit — that is a NUMBER</code></pre>
+</div>
+
+<p class="breath">end of chapter 17</p>
+
+<!-- ═══════════════ 18 ═══════════════ -->
+<div class="chapmark" id="c18"><span class="n">Chapter 18</span><span class="lec">Lecture 8 · 01 Oct</span>
+<h2>Finite automata, DFA and NFA</h2></div>
+
+<pre class="big"><code>FINITE AUTOMATA can RECOGNIZE strings generated by
+regular expressions.
+
+Build by hand, or automatically.
+Tools: LEX, FLEX, JLEX — given a set of REs.</code></pre>
+
+<div class="card def">
+  <span class="lbl">Definition — finite state automaton</span>
+  <ul>
+    <li>a <strong>finite set of states</strong> — one marked <em>initial</em>, one or more marked <em>final</em></li>
+    <li>a set of <strong>transitions</strong> from state to state, each labelled with a symbol</li>
+    <li>it <strong>operates by reading input symbols</strong> — a transition may be taken if it is labelled with the current symbol</li>
+    <li><strong>accept</strong> when a final state is reached and there is no more input</li>
+    <li><strong>reject</strong> if no transition is possible, or input ends in a non-final state</li>
+  </ul>
+</div>
+
+<h3>The smallest possible example</h3>
+
+<pre class="big"><code>FSA for the word "cat"
+
+  ──▶( )── c ──▶( )── a ──▶( )── t ──▶(( ))
+
+  single circle  =  ordinary state
+  double circle  =  FINAL / ACCEPTING state
+  arrow from nowhere = the START state</code></pre>
+
+<h3>DFA vs NFA</h3>
+
+<div class="cols">
+  <div class="col ok">
+    <h5>DFA — deterministic</h5>
+<pre><code>NO CHOICE of which
+transition to take
+under any condition.
+
+From state 3 on 'a'
+there is exactly
+ONE place to go.
+
+FAST — no backtracking</code></pre>
+  </div>
+  <div class="col">
+    <h5>NFA — non-deterministic</h5>
+<pre><code>A CHOICE of transition
+in at least one case.
+
+ACCEPT if SOME way
+reaches a final state.
+REJECT if NO possible
+way does.
+
+easier to build from
+a regular expression</code></pre>
+  </div>
+</div>
+
+<div class="card def">
+  <span class="lbl">The ε-transition</span>
+  <p>An NFA may also have an <strong>ε-transition</strong> [a move from one state to another that consumes <em>no</em> input — it can be taken at any time]. It is the glue used when building an NFA out of smaller pieces.</p>
+</div>
+
+<h3>The pipeline</h3>
+
+<pre class="big"><code>  regular      easy        NFA      well-defined      DFA
+ expression  ────────▶            ──────────────▶
+                                   SUBSET CONSTRUCTION</code></pre>
+
+<pre><code>· want a DFA for SPEED (no backtracking)
+· conversion from RE to NFA is EASY
+· there is a well-defined procedure for
+  converting an NFA to an equivalent DFA</code></pre>
+
+<h4>RE → NFA, the base cases</h4>
+
+<pre><code>for a single character 'a':     ──▶( )── a ──▶(( ))
+
+for ε:                          ──▶( )── ε ──▶(( ))</code></pre>
+
+<h4>RE → NFA, the three combinations</h4>
+
+<pre><code>r s   (one after the other)
+
+   ──▶[  r  ]── ε ──▶[  s  ]──▶
+
+
+r | s   (either one)
+
+           ┌─ ε ─▶[ r ]─ ε ─┐
+   ──▶( )──┤                ├──▶(( ))
+           └─ ε ─▶[ s ]─ ε ─┘
+
+
+r *   (zero or more)
+
+          ┌──────── ε ────────┐
+          │                   ▼
+   ──▶( )─┴─ ε ─▶[ r ]─ ε ─▶( )── ε ──▶(( ))
+          └──────── ε ────────┘</code></pre>
+
+<h4>NFA → DFA: subset construction</h4>
+
+<pre><code>IDEA
+  each DFA state represents a SET of NFA states
+
+KEY
+  the state of the DFA after reading some input
+  is the set of ALL states the NFA could have reached
+  after reading the same input
+
+SIZE
+  if the NFA has n states,
+  the DFA has AT MOST 2ⁿ states
+      ⇒ finite, so it can be built in finite steps
+
+NOTE
+  the resulting DFA may have MORE STATES THAN NEEDED
+  (minimisation fixes that — see books)</code></pre>
+
+<p class="plain"><b>The lecturer's own note</b>Your slide says <em>"see books for construction and minimization details"</em>. That means the algorithm itself is unlikely to be examined — but the <em>pipeline</em> and the <em>reasons</em> above are fair game.</p>
+
+<p class="breath">end of chapter 18</p>
+
+<!-- ═══════════════ 19 ═══════════════ -->
+<div class="chapmark" id="c19"><span class="n">Chapter 19</span><span class="lec">Lecture 8 · 01 Oct</span>
+<h2>The scanner DFA</h2></div>
+
+<div class="card def">
+  <span class="lbl">The setting</span>
+  <p>The scanner is called <strong>whenever the parser needs a new token</strong>. It stores the current position in the input, and starting there it uses a DFA to recognise the <em>longest possible</em> input sequence that makes up a token, and returns that token.</p>
+</div>
+
+<h3>Part 1 — the easy single characters</h3>
+
+<pre class="big"><code>            ┌── whitespace or comments ──┐
+            ▼                            │
+       ──▶( 0 )─────────────────────────┘
+            │
+            ├── end of input ──▶(( 1 ))   Accept EOF
+            ├──     (        ──▶(( 2 ))   Accept LPAREN
+            ├──     )        ──▶(( 3 ))   Accept RPAREN
+            └──     ;        ──▶(( 4 ))   Accept SEMICOLON</code></pre>
+
+<p class="plain"><b>The loop on state 0</b>Whitespace and comments go round and round and never leave. That is how they get <em>discarded</em> rather than turned into tokens.</p>
+
+<h3>Part 2 — characters that need a look ahead</h3>
+
+<pre class="big"><code>  ──  !  ──▶( 5 )──  =  ──▶(( 6 ))   Accept NEQ    ( != )
+                 └──[other]─▶(( 7 ))   Accept NOT    ( !  )
+
+  ──  &lt;  ──▶( 8 )──  =  ──▶(( 9 ))   Accept LEQ    ( &lt;= )
+                 └──[other]─▶((10 ))   Accept LESS   ( &lt;  )</code></pre>
+
+<div class="card why">
+  <span class="lbl">Why states 5 and 8 exist at all</span>
+<pre style="margin:10px 0"><code>after reading  !  the scanner CANNOT YET DECIDE
+
+   next char is '='   →  the token is  !=
+   next char is other →  the token was  !
+                         and that char belongs to the
+                         NEXT token</code></pre>
+  <p>Looking at a character you will not consume is <strong>lookahead</strong>. Stepping back off it is <strong>pushback</strong> or <strong>retract</strong>. That is precisely what <code>[other]</code> means on the diagram.</p>
+</div>
+
+<h3>Part 3 — numbers</h3>
+
+<pre><code>                ┌──[0-9]──┐
+                ▼         │
+  ──[0-9]──▶( 11 )────────┘
+                │
+                └──[other]──▶(( 12 ))   Accept INT</code></pre>
+
+<h3>Part 4 — identifiers and keywords</h3>
+
+<pre><code>                   ┌──[a-zA-Z0-9_]──┐
+                   ▼                │
+  ──[a-zA-Z]──▶( 13 )───────────────┘
+                   │
+                   └──[other]──▶(( 14 ))  Accept ID or keyword</code></pre>
+
+<div class="card def">
+  <span class="lbl">Two strategies for keywords</span>
+<pre style="margin:0"><code>HAND-WRITTEN SCANNER
+   look up identifier-like things in a TABLE OF KEYWORDS
+   to classify them
+   (a good application of perfect hashing)
+
+MACHINE-GENERATED SCANNER
+   the generated DFA has transitions that recognise
+   keywords directly
+   lots of states, but efficient — no extra lookup step</code></pre>
+</div>
+
+<p class="plain"><b>Why this matters for your assignment</b>The DFA cannot tell <code>while</code> from <code>whilex</code> while reading. It reads the whole run of letters first, <em>then</em> checks the keyword table. That is why <code>while20</code> comes out as one identifier — chapter 24.</p>
+
+<h3>A DFA for C-style comments</h3>
+
+<pre><code>                   non-*          *
+                   ┌──┐          ┌──┐
+                   ▼  │          ▼  │
+  ──▶( )── / ──▶( )── * ──▶( )── * ──▶( )── / ──▶(( ))
+                            ▲         │
+                            └─────────┘
+                           non-[ * , / ]</code></pre>
+
+<p>Walk it: <code>/</code> then <code>*</code> opens the comment. Then you sit in the middle state absorbing anything that is not a <code>*</code>. A <code>*</code> moves you forward hopefully; a <code>/</code> right after it closes the comment; anything else drops you back.</p>
+
+<h3>How much should we match?</h3>
+
+<pre class="big"><code>In general, find the LONGEST MATCH possible.
+
+On input 123.45, match this as
+
+        num_const(123.45)
+
+rather than
+
+        num_const(123) , "." , num_const(45)</code></pre>
+
+<div class="card def">
+  <span class="lbl">What counts as a match</span>
+  <p>A match is found when:</p>
+  <ul>
+    <li>the current automaton state is a <strong>final state</strong>; <em>and</em></li>
+    <li><strong>no transition is enabled</strong> on the next input character.</li>
+  </ul>
+  <p>Then the scanner: copies the lexeme (or other attribute) somewhere the parser can reach it; saves its scanner state so scanning can resume in the right place; and returns a value indicating the token found.</p>
+</div>
+
+<p class="breath">end of chapter 19</p>
+
+<!-- ═══════════════ 20 ═══════════════ -->
+<div class="chapmark" id="c20"><span class="n">Chapter 20</span><span class="lec">Lecture 8 · 01 Oct</span>
+<h2>Table-driven automaton</h2></div>
+
+<p>You do not write a DFA as a nest of <code>if</code> statements. You write it as a <strong>table</strong> plus one small loop.</p>
+
+<h3>The example from your notes</h3>
+
+<pre class="big"><code>THE MACHINE
+                      ┌─ a ─┐
+                      ▼     │
+   ──▶( 1 )── a ──▶(( 2 ))──┘
+         │             │
+         b             b
+         ▼             ▼
+      (( 3 ))◀── a ──(( 3 ))
+
+THE TABLE
+                 input
+              ┌─────┬─────┐
+              │  a  │  b  │
+        ┌─────┼─────┼─────┤
+        │  1  │  2  │  3  │
+ state  │  2  │  2  │  3  │
+        │  3  │  2  │ −1  │   ← −1 = error, no transition
+        └─────┴─────┴─────┘</code></pre>
+
+<h3>The whole scanner, in eight lines</h3>
+
+<pre class="big"><code>#define isFinal(s)   ((s) &lt; 0)
+
+int scanner()
+{
+    char ch;
+    int currState = 1;
+
+    while (TRUE) {
+        ch = NextChar();
+        if (ch == EOF) return 0;          /* fail    */
+
+        currState = T[currState][ch];     /* THE TABLE */
+
+        if (isFinal(currState)) {
+            return 1;                     /* success */
+        }
+    }
+}</code></pre>
+
+<div class="card good">
+  <span class="lbl">Why this is the right way to build it</span>
+<pre style="margin:0"><code>the LOGIC never changes   — the same loop, for any language
+the TABLE changes         — generated from your REs
+
+that is exactly how LEX and FLEX work:
+    you give REs  →  they generate the table
+                  →  this loop runs it</code></pre>
+</div>
+
+<h3>The alternative: encode states as code</h3>
+
+<pre><code>each STATE corresponds to a labelled code fragment
+each TRANSITION becomes a control transfer (a goto)
+
+while ( TRUE ) {
+    …
+    state_k:  ch = NextChar();     /* buffer mgt happens here */
+              switch (ch) {
+                  case …: goto …;  /* state transition */
+                  …
+              }
+    state_m:                       /* final state */
+              copy lexeme to where the parser can get at it;
+              return token_type;
+    …
+}</code></pre>
+
+<p class="plain"><b>Which to use</b>Table-driven is what generators produce and is easier to change. Hand-coded <code>goto</code> style can be marginally faster but is painful to maintain. For your assignment, the table is the safer choice.</p>
+
+<p class="breath">end of chapter 20</p>
+
+<!-- ═══════════════ 21 ═══════════════ -->
+<div class="chapmark" id="c21"><span class="n">Chapter 21</span><span class="lec">Lecture 8–9</span>
+<h2>A hand-written scanner</h2></div>
+
+<h3>The token structure</h3>
+
+<pre class="big"><code>public class Token {
+    public int    kind;     // token's lexical class
+    public int    intVal;   // integer value if class = INT
+    public String id;       // actual identifier if class = ID
+
+    // lexical classes
+    public static final int EOF    = 0;   // "end of file" token
+    public static final int ID     = 1;   // identifier, not keyword
+    public static final int INT    = 2;   // integer
+    public static final int LPAREN = 4;
+    public static final int SCOLN  = 5;
+    public static final int WHILE  = 6;
+    // etc. etc. etc. …
+}</code></pre>
+
+<p class="plain"><b>"A simple, tagged structure"</b>One field says <em>what kind</em> of token it is; the other fields carry the value, and only one of them is meaningful at a time. The <code>kind</code> is the tag that says which.</p>
+
+<h3>The global state</h3>
+
+<pre><code>// global state and methods
+
+static char nextch;          // next unprocessed input character
+
+void getch() { … }           // advance to next input char
+
+void skipWhitespace() { … }  // skip whitespace and comments</code></pre>
+
+<h3>getToken, part 1 — the easy cases</h3>
+
+<pre class="big"><code>public Token getToken() {
+    Token result;
+
+    skipWhiteSpace();
+
+    if (no more input) {
+        result = new Token(Token.EOF);  return result;
+    }
+
+    switch (nextch) {
+        case '(': result = new Token(Token.LPAREN); getch(); return result;
+        case ')': result = new Token(Token.RPAREN); getch(); return result;
+        case ';': result = new Token(Token.SCOLON); getch(); return result;
+        // etc. …</code></pre>
+
+<h3>Part 2 — the ones needing lookahead</h3>
+
+<pre class="big"><code>    case '!':                      // ! or !=
+        getch();
+        if (nextch == '=') {
+            result = new Token(Token.NEQ);  getch();  return result;
+        } else {
+            result = new Token(Token.NOT);            return result;
+        }
+
+    case '&lt;':                      // &lt; or &lt;=
+        getch();
+        if (nextch == '=') {
+            result = new Token(Token.LEQ);  getch();  return result;
+        } else {
+            result = new Token(Token.LESS);           return result;
+        }</code></pre>
+
+<p class="plain"><b>Compare with the DFA</b>This <code>case</code> block <em>is</em> states 5–7 of chapter 19, written out. The <code>else</code> branch is the <code>[other]</code> arrow: notice it does <strong>not</strong> call <code>getch()</code>, because that character belongs to the next token.</p>
+
+<h3>Part 3 — integers</h3>
+
+<pre class="big"><code>    case '0': case '1': case '2': case '3': case '4':
+    case '5': case '6': case '7': case '8': case '9':
+        // integer constant
+        String num = nextch;
+        getch();
+        while (nextch is a digit) {
+            num = num + nextch;  getch();      // ← LONGEST MATCH
+        }
+        result = new Token(Token.INT, Integer(num).intValue());
+        return result;</code></pre>
+
+<h3>Part 4 — identifiers and keywords</h3>
+
+<pre class="big"><code>    case 'a': … case 'z':
+    case 'A': … case 'Z':          // id or keyword
+        String s = nextch;  getch();
+
+        while (nextch is a letter, digit, or underscore) {
+            s = s + nextch;  getch();          // ← LONGEST MATCH
+        }
+
+        if (s is a keyword) {
+            result = new Token(keywordTable.getKind(s));
+        } else {
+            result = new Token(Token.ID, s);
+        }
+        return result;</code></pre>
+
+<div class="card good">
+  <span class="lbl">The crucial order in Part 4</span>
+<pre style="margin:0"><code>1. read the WHOLE run of letters/digits/underscores
+2. THEN ask the keyword table what it was
+
+not the other way round.</code></pre>
+  <p>That order is what makes <code>while20</code> a single identifier rather than <code>while</code> followed by <code>20</code>.</p>
+</div>
+
+<h3>The structure your notes sketch</h3>
+
+<pre><code>while (True) {
+    k = getchar;
+    switch (k) {
+        case 'a': continue;     ← keep eating, same token
+        case 'b': break;        ← token ends here
+                  return;
+    }
+}</code></pre>
+
+<p class="plain"><b>The shape in two words</b>An outer loop that keeps pulling characters, and a switch that decides, per character, whether the current token continues or ends. Everything above is that idea filled in.</p>
+
+<p class="breath">end of chapter 21</p>
+
+<!-- ═══════════════ 22 ═══════════════ -->
+<div class="chapmark" id="c22"><span class="n">Chapter 22</span><span class="lec">Lecture 8 · 01 Oct</span>
+<h2>Token, lexeme, pattern, attribute</h2></div>
+
+<pre class="big"><code>Main goal of the scanning process:  RECOGNIZE WORDS</code></pre>
+
+<h3>Three ways to implement the lexical analyzer</h3>
+
+<table>
+  <tr><th>Method</th><th>Ease</th><th>Efficiency</th></tr>
+  <tr><td>a <strong>scanner generator</strong> — lex or flex</td><td>easiest to implement</td><td>least efficient</td></tr>
+  <tr><td>a <strong>programming language such as C</strong>, using the I/O facilities of the language</td><td>intermediate</td><td>intermediate</td></tr>
+  <tr><td><strong>assembly language</strong>, explicitly managing the input</td><td>hardest</td><td>most efficient</td></tr>
+</table>
+
+<h3>The three words</h3>
+
+<div class="card def">
+  <span class="lbl">Definitions — straight from the lecture</span>
+<pre style="margin:0"><code>TOKEN    a NAME for a SET of input
+
+LEXEME   the ACTUAL INPUT STRING that matches a pattern
+
+PATTERN  the rule a lexeme must match</code></pre>
+</div>
+
+<table>
+  <tr><th>In the file</th><th>Lexeme</th><th>Pattern</th><th>Token</th></tr>
+  <tr><td><code>count</code></td><td><code>count</code></td><td><code>[a-zA-Z][a-zA-Z0-9_]*</code></td><td><code>ID</code></td></tr>
+  <tr><td><code>123</code></td><td><code>123</code></td><td><code>[0-9]+</code></td><td><code>INT</code></td></tr>
+  <tr><td><code>while</code></td><td><code>while</code></td><td>the literal word</td><td><code>WHILE</code></td></tr>
+  <tr><td><code>&lt;=</code></td><td><code>&lt;=</code></td><td>the literal pair</td><td><code>LEQ</code></td></tr>
+</table>
+
+<p class="plain"><b>One sentence</b>The scanner reads a <em>lexeme</em>, matches it against a <em>pattern</em>, and emits a <em>token</em>.</p>
+
+<h3>Attributes for tokens</h3>
+
+<div class="card def">
+  <span class="lbl">Why attributes are needed</span>
+  <p><em>"If more than one lexeme can match the pattern for a token, the actual lexeme that matched must be indicated."</em> This information is given using an <strong>attribute</strong> associated with the token.</p>
+</div>
+
+<pre><code>WITHOUT attributes            WITH attributes
+
+   ID                            ⟨ ID , "count" ⟩
+   ID                            ⟨ ID , "total" ⟩
+      ▲                                    ▲
+  indistinguishable            now the later phases
+                               know WHICH name</code></pre>
+
+<h4>The worked example</h4>
+
+<pre class="big"><code>the program statement
+
+        count = 123
+
+yields the following token-attribute pairs:
+
+   ⟨ identifier , pointer to the string "count" ⟩
+   ⟨ assign_op  , —                             ⟩
+   ⟨ number     , the integer value 123         ⟩</code></pre>
+
+<div class="card good">
+  <span class="lbl">Which tokens carry an attribute</span>
+<pre style="margin:0"><code>ID      yes — WHICH name?
+INT     yes — WHICH value?
+STRING  yes — WHICH text?
+
+(       no  — a left paren is a left paren
++       no
+while   no</code></pre>
+  <p>Only tokens whose pattern matches more than one lexeme need one.</p>
+</div>
+
+<p class="breath">end of chapter 22</p>
+
+<!-- ═══════════════ 23 ═══════════════ -->
+<div class="chapmark" id="c23"><span class="n">Chapter 23</span><span class="lec">Lecture 8 · 01 Oct</span>
+<h2>The symbol table</h2></div>
+
+<pre class="big"><code> source   ┌──────────────────┐ tokens ┌─────────────────┐
+ program ─▶│ LEXICAL ANALYZER │ ──────▶│ SYNTAX ANALYZER │
+           │     (scanner)    │        │     (parser)    │
+           └──────────────────┘        └─────────────────┘
+                      ↘                        ↙
+                       ┌──────────────────────┐
+                       │  SYMBOL TABLE MANAGER │
+                       └──────────────────────┘</code></pre>
+
+<div class="card def">
+  <span class="lbl">Definition — symbol table</span>
+  <p>The <strong>symbol table</strong> holds <em>all the identifiers along with their types and data types</em>. Both the scanner and the parser talk to it — which is why it is drawn to the side of the pipeline rather than inside it.</p>
+</div>
+
+<table>
+  <tr><th>name</th><th>type</th><th>data type</th><th>line</th><th>…</th></tr>
+  <tr><td><code>count</code></td><td>variable</td><td>int</td><td>2</td><td>memory address</td></tr>
+  <tr><td><code>main</code></td><td>function</td><td>int</td><td>1</td><td>…</td></tr>
+  <tr><td><code>Point</code></td><td>struct</td><td>—</td><td>8</td><td>…</td></tr>
+</table>
+
+<h3>The scanner's four jobs</h3>
+
+<div class="card good">
+  <span class="lbl">Straight from your notes</span>
+  <ol style="margin:0">
+    <li><strong>Generates tokens</strong> and <strong>strips off whitespace and comments</strong>.</li>
+    <li><strong>Correlates error messages with the source program</strong> — i.e. keeps the line number, so errors can say <em>where</em>.</li>
+    <li>Placeholder <strong>id gets assigned in the syntax analyzer</strong>, and <strong>is checked in the semantic analyzer</strong>.</li>
+    <li>Feeds the symbol table.</li>
+  </ol>
+</div>
+
+<p class="plain"><b>Job 2 is why line numbers exist</b>By the time the parser reports an error, the original text is long gone — it is working on tokens. Unless the scanner attached a line number to each token, no phase could ever tell you <em>where</em> the problem is.</p>
+
+<h3>The token sequence</h3>
+
+<pre><code>source:    int main (
+
+tokens:    keywd_int
+           identifier  "main"
+           left_paren</code></pre>
+
+<p class="breath">end of chapter 23</p>
+
+<!-- ═══════════════ 24 ═══════════════ -->
+<div class="chapmark" id="c24"><span class="n">Chapter 24</span><span class="lec">Lecture 9 · 06 Oct</span>
+<h2>Longest match</h2></div>
+
+<div class="card def">
+  <span class="lbl">The rule</span>
+  <p>At the current position, if several patterns could match, the scanner takes the <strong>longest</strong> one.</p>
+  <p>Your notes call it the <em>"principle of honest matching"</em>. The textbook name is <strong>longest match</strong>, also <em>maximal munch</em>.</p>
+</div>
+
+<h3>Case 1 — <code>for36while &lt; if</code></h3>
+
+<ol class="steps">
+  <li>Sees <code>f</code>. A letter — could start an identifier or a keyword. Keep going.</li>
+  <li><code>f-o-r</code> matches the keyword <code>for</code>. <strong>Do not stop.</strong> Longest match says check whether more characters still fit.</li>
+  <li><code>f-o-r-3-6-w-h-i-l-e</code> — all legal inside an identifier. Keep eating.</li>
+  <li>Next character is a <strong>space</strong>. Not legal inside an identifier, so the run ends.</li>
+  <li><code>for36while</code> is <strong>one single identifier</strong>.</li>
+</ol>
+
+<pre><code>for36while  &lt;  if
+└────┬────┘ └┬┘ └┬┘
+  IDENT      LT  IF keyword
+
+3 tokens.  The "for" inside never had a chance to
+be a keyword, because the name ran longer.</code></pre>
+
+<h3>Case 2 — <code>for 36 // while &lt; if</code></h3>
+
+<pre><code>for   36   //  while &lt; if
+└┬┘  └┬┘   └───────┬────┘
+ FOR  INT      comment — thrown away entirely
+
+REAL TOKENS = 2</code></pre>
+
+<p>The scanner does not merely ignore comments — it <strong>deletes</strong> them. The parser never learns one existed.</p>
+
+<h3>Case 3 — the family</h3>
+
+<table>
+  <tr><th>Input</th><th>Tokens</th><th>Why</th></tr>
+  <tr><td><code>while &lt; if</code></td><td><code>WHILE</code> <code>LT</code> <code>IF</code></td><td>both keywords stand alone</td></tr>
+  <tr><td><code>while &lt; if3</code></td><td><code>WHILE</code> <code>LT</code> <code>IDENT(if3)</code></td><td>the <code>3</code> killed the keyword</td></tr>
+  <tr><td><code>while20 + 60 for</code></td><td><code>IDENT</code> <code>PLUS</code> <code>INT</code> <code>FOR</code></td><td><code>while20</code> ran longer than <code>while</code></td></tr>
+  <tr><td><code>while3$if1</code></td><td>one <code>IDENT</code>, or an error</td><td>see the box below</td></tr>
+</table>
+
+<div class="card warn">
+  <span class="lbl">The subtle one — read twice</span>
+  <p>Your notes say <code>while3$if1</code> — <em>"$ makes it a complete identifier"</em>. The logic:</p>
+<pre style="margin:10px 0 0"><code>IF your language ALLOWS $ inside names:
+   there is no space, no operator, nothing to break on
+   → the scanner swallows the whole thing
+   → ONE identifier named  while3$if1
+
+IF your language does NOT allow $:
+   → INVALID IDENTIFIER
+   → which is exactly the error your assignment must catch</code></pre>
+</div>
+
+<div class="card good">
+  <span class="lbl">The lesson in one line</span>
+  <p>A keyword is only a keyword when it stands <strong>completely alone</strong>. One extra letter or digit glued on and longest match turns it into an ordinary name.</p>
+</div>
+
+<p class="breath">end of chapter 24</p>
+
+<!-- ═══════════════ 25 ═══════════════ -->
+<div class="chapmark" id="c25"><span class="n">Chapter 25</span><span class="lec">Lecture 9 · 06 Oct</span>
+<h2>Lexical errors and panic mode</h2></div>
+
+<p>What should the scanner do when it meets a character it cannot use? Two tempting but bad options:</p>
+
+<div class="card bad">
+  <span class="lbl">The two bad options</span>
+  <ul style="margin:0">
+    <li><strong>Stop the whole compile.</strong> Fix one character, recompile, find the next one. Agonising.</li>
+    <li><strong>Ignore it silently.</strong> Broken programs compile. Dangerous.</li>
+  </ul>
+</div>
+
+<div class="card def">
+  <span class="lbl">Definition — panic-mode error recovery</span>
+  <p><strong>Panic mode</strong> is the middle path: <em>report the error, discard input until you reach something safe to restart from</em> (a space, a semicolon, a newline), <em>then carry on scanning normally</em>.</p>
+  <p>The payoff: one run reports <strong>many</strong> errors instead of one.</p>
+</div>
+
+<pre class="big"><code>input:    while 20 $ 60 + for
+                   ▲
+                   └── illegal character
+
+1. REPORT    "illegal character '$' at line 1"
+2. DISCARD   the $
+3. RESUME    while 20 60 + for      ← scanning continues
+
+two errors in the file?  you see BOTH, in ONE run.</code></pre>
+
+<h3>The examples from your notes</h3>
+
+<table>
+  <tr><th>Input</th><th>Verdict</th><th>Why</th></tr>
+  <tr><td><code>9.36.7</code></td><td>invalid ✗</td><td>two decimal points — no number pattern allows it</td></tr>
+  <tr><td><code>9.36 ; 7</code></td><td>valid ✓</td><td>three separate tokens</td></tr>
+  <tr><td><code>9.36 $ 7</code></td><td>invalid ✗</td><td><code>$</code> is not a legal character</td></tr>
+  <tr><td><code>a$x53b$a</code></td><td>invalid ✗</td><td><code>$</code> inside what should be one identifier</td></tr>
+  <tr><td><code>a$x53ba $49</code></td><td>invalid ✗ ×2</td><td>two separate bad runs</td></tr>
+  <tr><td><code>5c</code></td><td>invalid ✗</td><td>a number cannot be followed by a letter in one token</td></tr>
+</table>
+
+<details>
+  <summary>Drill — how many errors in <code>a$x53b$a + $49</code>, with panic mode on?</summary>
+  <div class="ans">
+    <p>Assuming <code>$</code> is illegal:</p>
+<pre><code>a$x53b$a   → INVALID IDENTIFIER, report, skip to the space
++          → valid, PLUS
+$49        → INVALID, a token cannot begin with $
+
+2 errors reported, 1 good token.
+
+without panic mode you would have seen only
+the FIRST error.</code></pre>
+  </div>
+</details>
+
+<p class="breath">end of chapter 25</p>
+
+<!-- ═══════════════ 26 ═══════════════ -->
+<div class="chapmark" id="c26"><span class="n">Chapter 26</span><span class="lec">Lectures 6 &amp; 9</span>
+<h2>Your assignment</h2></div>
+
+<h3>The scanner (lecture 9)</h3>
+
+<pre class="big"><code>IMPLEMENT THE PARSER  until Tuesday 12th Oct
+
+the code is a SET OF CHARACTERS in a text file
+    — you choose the file extension
+
+your program READS THAT FILE ONE CHARACTER AT A TIME
+
+it PRINTS EACH TOKEN with the token's type
+
+the one error you must detect:  INVALID IDENTIFIER</code></pre>
+
+<h4>The output format</h4>
+
+<p>For input <code>for ( i = 5 ; i &lt; n ; i++ )</code>:</p>
+
+<table>
+  <tr><th>Token</th><th>Token type</th></tr>
+  <tr><td><code>for</code></td><td>keyword</td></tr>
+  <tr><td><code>(</code></td><td>left parenthesis</td></tr>
+  <tr><td><code>i</code></td><td>identifier (Id)</td></tr>
+  <tr><td><code>=</code></td><td>assign</td></tr>
+  <tr><td><code>5</code></td><td>numeric constant</td></tr>
+  <tr><td><code>;</code></td><td>semicolon</td></tr>
+</table>
+
+<div class="card good">
+  <span class="lbl">The two classification rules</span>
+<pre style="margin:0"><code>IDENTIFIER         characters AND digits — alphanumeric
+                   i , ip , while20 , x53b9a
+
+RESERVED KEYWORD   characters only, AND on the
+                   language's fixed list
+                   for , while , if</code></pre>
+  <p>And the rule that makes everything click, from your notes: <em>"jab token ko proper token na mil jaye, identifier bun jata hai"</em> — <strong>when a run of characters matches no specific token, it falls back to being an identifier.</strong></p>
+</div>
+
+<h3>The language specification (lecture 6)</h3>
+
+<p>Seven changes your lecturer required in your own language design:</p>
+
+<ol class="steps">
+  <li><strong>Comments</strong> — pick and define a syntax.</li>
+  <li><strong>Block brackets</strong> — what opens and closes a block.</li>
+  <li><strong>Conditional brackets</strong> — replace the input brackets; in function declaration/definition, explicitly define. Comma, fixed.</li>
+  <li><strong>Booleans</strong> — <code>0, 1</code> → <code>True, False</code>.</li>
+  <li><strong>Two-dimensional arrays</strong> — account for them.</li>
+  <li><strong>Compound statements</strong>.</li>
+  <li><strong>Total data types</strong> — create a table.</li>
+</ol>
+
+<pre><code>NEXT TASK (from the same page)
+
+   regular expression   }  for every word
+   automata             }
+
+   print out of doc</code></pre>
+
+<div class="card why">
+  <span class="lbl">How the two assignments fit together</span>
+<pre style="margin:10px 0 0"><code>lecture 6   DESIGN the language   → the spec
+lecture 7   write it in BNF/EBNF  → the grammar
+lecture 8   RE + automaton per word → the patterns
+lecture 9   IMPLEMENT the scanner → the code
+
+each one is the input to the next.</code></pre>
+</div>
+
+<p class="breath">end of chapter 26</p>
+
+<!-- ═══════════════ 27 ═══════════════ -->
+<div class="chapmark" id="c27"><span class="n">Chapter 27</span>
+<h2>Cheat sheet</h2></div>
+
+<h3>The pipeline, end to end</h3>
+
+<pre class="big"><code>source code
+   │
+   ▼  SCANNER        characters → tokens        (FA, Type 3)
+   │                 strips whitespace + comments
+   │                 longest match, panic mode
+   ▼  PARSER         tokens → parse tree        (CFG, Type 2)
+   │
+   ▼  SEMANTICS      meaning, type checking
+   │
+   ▼  IR             AST / three-address form
+   │
+   ▼  MIDDLE END     optimiser passes
+   │
+   ▼  BACK END       instruction selection
+   │                 register allocation
+   ▼
+machine code</code></pre>
+
+<h3>Definitions to write cold</h3>
+
+<table>
+  <tr><th>Term</th><th>One line</th></tr>
+  <tr><td>Compiler vs interpreter</td><td>translates once into a file / executes directly, every run</td></tr>
+  <tr><td>Cross compiler</td><td>runs on one machine, produces code for another</td></tr>
+  <tr><td>Front end / back end</td><td>deals with the user program / generates machine code</td></tr>
+  <tr><td>IR</td><td>the form between front and back end; often an AST</td></tr>
+  <tr><td>Syntax / semantics</td><td>which character sequences are valid / what they mean</td></tr>
+  <tr><td>Metalanguage</td><td>a language used to describe another language</td></tr>
+  <tr><td>BNF</td><td>the metalanguage for syntax; terminals, non-terminals, start symbol</td></tr>
+  <tr><td>EBNF</td><td>BNF plus <code>[ ]</code> optional, <code>{ }</code> repetition, <code>( )</code> grouping, <code>" "</code> terminals</td></tr>
+  <tr><td>Syntax diagram</td><td>syntax drawn graphically; one diagram per non-terminal</td></tr>
+  <tr><td>Chomsky hierarchy</td><td>Type 3 regular ⊂ Type 2 CFG ⊂ Type 1 context-sensitive ⊂ Type 0 unrestricted</td></tr>
+  <tr><td>Grammar</td><td>G = (N, T, S, P)</td></tr>
+  <tr><td>Token / lexeme / pattern</td><td>a name for a set of input / the actual string / the rule it matches</td></tr>
+  <tr><td>Attribute</td><td>extra data on a token saying which lexeme matched</td></tr>
+  <tr><td>DFA / NFA</td><td>no choice of transition / a choice in at least one case</td></tr>
+  <tr><td>Subset construction</td><td>NFA → DFA; each DFA state is a set of NFA states; at most 2ⁿ</td></tr>
+  <tr><td>Longest match</td><td>when several patterns match, take the longest lexeme</td></tr>
+  <tr><td>Panic-mode recovery</td><td>report, discard to a safe point, resume</td></tr>
+  <tr><td>Symbol table</td><td>all identifiers with their types and data types</td></tr>
+  <tr><td>Register allocation</td><td>deciding what stays in registers; solved as graph colouring</td></tr>
+</table>
+
+<h3>The grammar to reproduce from memory</h3>
+
+<pre><code>⟨expr⟩    ::= ⟨term⟩ | ⟨expr⟩ + ⟨term⟩ | ⟨expr⟩ − ⟨term⟩
+⟨term⟩    ::= ⟨factor⟩ | ⟨term⟩ * ⟨factor⟩ | ⟨term⟩ / ⟨factor⟩
+⟨factor⟩  ::= ⟨integer⟩ | ( ⟨expr⟩ )
+⟨integer⟩ ::= ⟨digit⟩ | ⟨integer⟩⟨digit⟩
+⟨digit⟩   ::= 0|1|2|3|4|5|6|7|8|9</code></pre>
+
+<h3>Four things to verify against your slides</h3>
+
+<div class="card warn">
+  <span class="lbl">Where your notes and the standard terms differ</span>
+  <ol style="margin:0">
+    <li>Your notes write <em>"principle of honest matching"</em>; the textbook term is <strong>longest match</strong> (maximal munch). Use whichever your lecturer marks.</li>
+    <li>Your Chomsky page labels Type 3 with "CNF" in one place. <strong>Type 3 = regular</strong>; Chomsky Normal Form is an unrelated idea (a restricted shape for Type 2 grammars).</li>
+    <li>On one EBNF page the <code>[ ]</code> and <code>{ }</code> meanings look swapped. The lecture's own convention, used here, is <code>[X]</code> optional and <code>{X}</code> repeated.</li>
+    <li>Your lecture-8 scanner DFA numbers the semicolon state as <strong>5</strong> on one page and <strong>4</strong> on the slide. Cosmetic — state numbers carry no meaning.</li>
+  </ol>
+</div>
+
+<h3>What Part 2 covers</h3>
+
+<pre><code>· why regular expressions cannot describe nesting
+· CFGs, derivations, parse trees
+· AMBIGUITY and how layering cures it
+· associativity
+· top-down vs bottom-up parsing
+· RECURSIVE DESCENT — writing the parser
+· LEFT RECURSION and its removal
+· NON-DETERMINISM and LEFT FACTORING
+· the dangling else</code></pre>
+
+<footer>
+  <p>Part 1 of 2. Built from class notes for lectures 1–9 (08 September – 06 October 2026, Dr. Syed M. Naqi) together with the <em>Introduction</em> and <em>Scanner</em> slide decks. Lecture 10 was cancelled; lecture 11 you were absent for; lecture 12 was assignment work. Lectures 13–15 are in Part 2.</p>
+</footer>
+
+</div>
+</body>
+</html>

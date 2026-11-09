@@ -1,0 +1,2280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Part 2 — Grammars and Parsing</title>
+<style>
+:root{
+  --paper:#fcfbf8; --card:#ffffff; --ink:#252320; --soft-ink:#5f594f; --faint:#8c857a;
+  --rule:#e7e2d7; --rule-soft:#f0ece3;
+  --blue:#3b5bdb;   --blue-bg:#f2f5ff;   --blue-line:#d2dafb;
+  --green:#2f7a4f;  --green-bg:#f1faf4;  --green-line:#cbe8d6;
+  --amber:#a9682a;  --amber-bg:#fff8ee;  --amber-line:#f0ddc2;
+  --rose:#b24444;   --rose-bg:#fff5f4;   --rose-line:#f5d5d2;
+  --violet:#6b4ba8; --violet-bg:#f8f4ff; --violet-line:#e2d8f7;
+  --code-bg:#f7f5ef; --maxw:730px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:Georgia,"Iowan Old Style","Palatino Linotype",serif;font-size:17.5px;line-height:1.78}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px 140px}
+
+.masthead{padding:60px 0 34px;text-align:center}
+.masthead .tag{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);font-weight:700;margin:0 0 16px}
+h1{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:36px;line-height:1.15;letter-spacing:-.025em;margin:0 0 16px;font-weight:700}
+.masthead .sub{color:var(--soft-ink);margin:0 auto;max-width:34em;font-size:17px}
+.rule-orn{display:flex;align-items:center;gap:12px;justify-content:center;margin:34px 0 0}
+.rule-orn span{height:1px;width:70px;background:var(--rule)}
+.rule-orn b{color:var(--blue);font-size:13px}
+
+h2{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:26px;line-height:1.25;letter-spacing:-.02em;font-weight:700;margin:0 0 10px}
+.chapmark{margin:76px 0 0;padding:26px 0 0;border-top:2px solid var(--rule)}
+.chapmark .n{display:inline-block;font-family:ui-sans-serif,system-ui,sans-serif;
+  font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700;
+  color:var(--blue);background:var(--blue-bg);border:1px solid var(--blue-line);
+  padding:4px 11px;border-radius:30px;margin-bottom:16px}
+.chapmark .lec{display:inline-block;margin-left:8px;font-family:ui-sans-serif,system-ui,sans-serif;
+  font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;
+  color:var(--faint);background:var(--rule-soft);border:1px solid var(--rule);
+  padding:4px 11px;border-radius:30px}
+h3{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:19.5px;font-weight:700;letter-spacing:-.012em;margin:44px 0 6px}
+h4{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:15px;font-weight:700;margin:30px 0 2px;color:var(--soft-ink)}
+p{margin:16px 0}
+ul,ol{margin:16px 0;padding-left:24px}
+li{margin:9px 0}
+
+code,pre,.m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+code{background:var(--code-bg);padding:2px 6px;border-radius:5px;font-size:.85em;border:1px solid var(--rule-soft)}
+pre{background:var(--code-bg);border:1px solid var(--rule);border-radius:12px;
+  padding:18px 20px;overflow-x:auto;font-size:13.5px;line-height:1.62;margin:22px 0;color:#33302a}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+pre.big{font-size:14.5px;line-height:1.7}
+
+.card{background:var(--card);border:1px solid var(--rule);border-radius:14px;
+  padding:20px 22px;margin:26px 0;box-shadow:0 1px 2px rgba(60,50,30,.035)}
+.card > :first-child{margin-top:0}
+.card > :last-child{margin-bottom:0}
+.lbl{display:block;font-family:ui-sans-serif,system-ui,sans-serif;font-size:10.5px;
+  font-weight:800;letter-spacing:.15em;text-transform:uppercase;margin-bottom:10px}
+.def{background:var(--blue-bg);border-color:var(--blue-line)}     .def .lbl{color:var(--blue)}
+.why{background:var(--violet-bg);border-color:var(--violet-line)} .why .lbl{color:var(--violet)}
+.good{background:var(--green-bg);border-color:var(--green-line)}  .good .lbl{color:var(--green)}
+.warn{background:var(--amber-bg);border-color:var(--amber-line)}  .warn .lbl{color:var(--amber)}
+.bad{background:var(--rose-bg);border-color:var(--rose-line)}     .bad .lbl{color:var(--rose)}
+.card pre{background:rgba(255,255,255,.72)}
+
+.plain{border-left:3px solid var(--blue-line);padding:4px 0 4px 16px;margin:20px 0;
+  color:var(--soft-ink);font-size:16.5px}
+.plain b{color:var(--blue);font-family:ui-sans-serif,system-ui,sans-serif;font-size:11px;
+  letter-spacing:.12em;text-transform:uppercase;display:block;margin-bottom:3px}
+
+.breath{text-align:center;margin:44px 0;color:var(--faint);font-size:14.5px;font-style:italic}
+.breath::before,.breath::after{content:"·  ";letter-spacing:.3em}
+
+.steps{counter-reset:s;list-style:none;padding-left:0;margin:22px 0}
+.steps > li{counter-increment:s;position:relative;padding-left:44px;margin:18px 0}
+.steps > li::before{content:counter(s);position:absolute;left:0;top:1px;width:28px;height:28px;
+  border-radius:50%;background:var(--card);color:var(--blue);border:1.5px solid var(--blue-line);
+  font-family:ui-sans-serif,system-ui,sans-serif;font-size:13px;font-weight:700;
+  display:flex;align-items:center;justify-content:center}
+
+nav.toc{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:22px 24px;margin:40px 0}
+nav.toc .lbl{color:var(--blue)}
+nav.toc ol{counter-reset:t;list-style:none;padding:0;margin:0;font-size:16px}
+nav.toc li{counter-increment:t;margin:0;border-bottom:1px solid var(--rule-soft)}
+nav.toc li:last-child{border-bottom:0}
+nav.toc a{display:flex;gap:14px;align-items:baseline;padding:9px 2px;color:var(--ink);text-decoration:none}
+nav.toc a::before{content:counter(t);font-family:ui-monospace,monospace;font-size:12px;color:var(--faint);min-width:18px}
+nav.toc a:hover{color:var(--blue)}
+nav.toc .grp{font-family:ui-sans-serif,system-ui,sans-serif;font-size:10.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--faint);font-weight:700;padding:16px 2px 6px;border-bottom:1px solid var(--rule-soft)}
+nav.toc .grp:first-child{padding-top:4px}
+
+table{border-collapse:separate;border-spacing:0;width:100%;margin:24px 0;font-size:14.5px;
+  font-family:ui-sans-serif,system-ui,sans-serif;background:var(--card);
+  border:1px solid var(--rule);border-radius:12px;overflow:hidden}
+th,td{padding:10px 13px;text-align:left;vertical-align:top;border-bottom:1px solid var(--rule-soft)}
+tr:last-child td{border-bottom:0}
+th{background:#faf8f3;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--soft-ink);font-weight:700}
+td code{font-size:.9em}
+
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:24px 0}
+.cols .col{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:16px 18px}
+.cols .col h5{margin:0 0 10px;font-family:ui-sans-serif,system-ui,sans-serif;font-size:13px;
+  letter-spacing:.06em;text-transform:uppercase;font-weight:700}
+.cols .col pre{margin:0;background:transparent;border:0;padding:0;font-size:12.8px}
+.col.ok h5{color:var(--green)} .col.ok{background:var(--green-bg);border-color:var(--green-line)}
+.col.no h5{color:var(--rose)} .col.no{background:var(--rose-bg);border-color:var(--rose-line)}
+@media(max-width:620px){.cols{grid-template-columns:1fr}}
+
+details{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:14px 18px;margin:18px 0}
+details[open]{border-color:var(--blue-line);background:var(--blue-bg)}
+summary{cursor:pointer;font-family:ui-sans-serif,system-ui,sans-serif;font-size:15.5px;font-weight:600}
+summary::marker{color:var(--blue)}
+details .ans{margin-top:14px;padding-top:14px;border-top:1px dashed var(--rule)}
+details .ans p:first-child{margin-top:0}
+details pre{background:rgba(255,255,255,.72)}
+
+.gloss{color:var(--faint);font-style:italic}
+footer{margin-top:80px;padding-top:26px;border-top:2px solid var(--rule);color:var(--faint);font-size:14.5px}
+
+@media(max-width:600px){
+  body{font-size:16.5px;line-height:1.75}
+  h1{font-size:28px} h2{font-size:22px} h3{font-size:18px}
+  pre{font-size:12px;padding:14px 15px} pre.big{font-size:12.5px}
+  .wrap{padding:0 17px 110px}
+  table{font-size:13.5px} th,td{padding:8px 10px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="masthead">
+  <p class="tag">Compiler Construction · Part 2 of 2 · Lectures 13–15</p>
+  <h1>Grammars<br>and Parsing</h1>
+  <p class="sub">From "regular expressions aren't enough" to a recursive descent parser that terminates. Every grammar worked by hand.</p>
+  <div class="rule-orn"><span></span><b>❧</b><span></span></div>
+</div>
+
+<div class="card why">
+  <span class="lbl">Where this picks up</span>
+<pre><code>PART 1 ended with:  the SCANNER
+                    characters → tokens
+                    longest match, panic mode, the DFA
+
+PART 2 starts with: the tokens are in hand.
+                    now — are they a LEGAL PROGRAM,
+                    and what STRUCTURE do they have?</code></pre>
+  <p>One chapter at a time. Everything is defined before it is used.</p>
+</div>
+
+<nav class="toc">
+  <span class="lbl">Contents</span>
+  <div class="grp">Grammars · lecture 13</div>
+  <ol>
+    <li><a href="#c1">Why regular expressions give up</a></li>
+    <li><a href="#c2">Context-free grammars</a></li>
+    <li><a href="#c3">Derivations, leftmost and rightmost</a></li>
+    <li><a href="#c4">Parse trees and the AST</a></li>
+    <li><a href="#c5">Ambiguity</a></li>
+    <li><a href="#c6">Fixing precedence by layering</a></li>
+    <li><a href="#c7">Associativity</a></li>
+    <li><a href="#c8">Two more grammars</a></li>
+    <li><a href="#c9">Facts about ambiguity</a></li>
+  </ol>
+  <div class="grp">Parsers · lecture 13–14</div>
+  <ol start="10">
+    <li><a href="#c10">Top-down and bottom-up</a></li>
+    <li><a href="#c11">Parsing as a search</a></li>
+    <li><a href="#c12">Recursive descent</a></li>
+  </ol>
+  <div class="grp">Fixing grammars · lectures 14–15</div>
+  <ol start="13">
+    <li><a href="#c13">Left recursion: the infinite loop</a></li>
+    <li><a href="#c14">The removal recipe</a></li>
+    <li><a href="#c15">Worked removals</a></li>
+    <li><a href="#c16">Writing the code — and the ε bug</a></li>
+    <li><a href="#c17">Indirect left recursion</a></li>
+    <li><a href="#c18">Non-determinism</a></li>
+    <li><a href="#c19">Left factoring</a></li>
+    <li><a href="#c20">Longest common prefix</a></li>
+    <li><a href="#c21">The dangling else</a></li>
+    <li><a href="#c22">Cheat sheet</a></li>
+  </ol>
+</nav>
+
+<!-- ═══════════════ 1 ═══════════════ -->
+<div class="chapmark" id="c1"><span class="n">Chapter 1</span><span class="lec">Lecture 13 · 20 Oct</span>
+<h2>Why regular expressions give up</h2></div>
+
+<pre class="big"><code>After lexical analysis we have a SERIES OF TOKENS.
+
+LIMIT OF REGULAR EXPRESSION
+
+    can check PATTERNS
+    but not VALIDATE SYNTAX</code></pre>
+
+<p>That one line from your notes carries the whole rest of the course. Here is why it is true.</p>
+
+<h3>The game</h3>
+
+<p>You are given a machine. It reads characters one at a time, left to right. It has a <strong>fixed, finite number of states</strong> — say 50 little boxes it can sit in. It has <strong>no notepad</strong>. After each character it just moves to another box.</p>
+
+<p>That machine is a <strong>finite automaton</strong>, and it is exactly what a regular expression compiles into.</p>
+
+<p>Your task: <strong>use it to check that brackets are balanced.</strong> Accept <code>(())</code>. Reject <code>(()</code>.</p>
+
+<div class="card bad">
+  <span class="lbl">Why you will fail — and it is not your fault</span>
+  <p>To know whether brackets balance you must <strong>remember how many are still open</strong>. With 50 boxes you can count to about 50. Feed it 51 open brackets and it loses track — it has physically run out of boxes to remember with.</p>
+  <p>But a program may nest 51 deep. Or 500. There is no upper limit. <strong>A machine with finite memory and no notepad cannot count without a bound.</strong></p>
+</div>
+
+<p>And a programming language is <em>nothing but</em> nesting: brackets inside brackets, <code>if</code> inside <code>while</code> inside a function. Nesting is not a corner case — it is the subject.</p>
+
+<h3>Said another way</h3>
+
+<pre><code>CAN the scanner answer:   "is 'while20' a legal identifier?"
+                           YES — it is just a pattern.  ✓
+
+CAN the scanner answer:   "is '( int + ) * int' a legal expression?"
+                           NO.  ✗
+
+   every single token in it is legal.
+   it is the ARRANGEMENT that is broken —
+   and arrangement is not a pattern.</code></pre>
+
+<p class="breath">end of chapter 1</p>
+
+<!-- ═══════════════ 2 ═══════════════ -->
+<div class="chapmark" id="c2"><span class="n">Chapter 2</span><span class="lec">Lecture 13 · 20 Oct</span>
+<h2>Context-free grammars</h2></div>
+
+<div class="card def">
+  <span class="lbl">Definition — context-free grammar</span>
+  <p>A CFG is four things, <strong>G = (N, T, S, P)</strong>:</p>
+<pre style="margin:10px 0 0"><code>T   TERMINALS      the real tokens that survive into the
+                   finished program: int, +, (, while
+                   they TERMINATE — nothing replaces them
+
+N   NON-TERMINALS  names for structures, written as capitals:
+                   E, T, P, Op
+                   every one MUST eventually be replaced
+
+S   START SYMBOL   the one non-terminal you begin from
+
+P   PRODUCTIONS    the rules, each written  A → something</code></pre>
+</div>
+
+<div class="card why">
+  <span class="lbl">Why "context-free"?</span>
+  <p>Because the left side of every rule is a <strong>single non-terminal</strong>. If a rule says <code>Op → +</code>, you may apply it <em>anywhere</em> an <code>Op</code> appears — it never depends on what sits around it. The surroundings (the "context") are irrelevant.</p>
+</div>
+
+<h3>The notation, once</h3>
+
+<table>
+  <tr><th>Symbol</th><th>Say it as</th></tr>
+  <tr><td><code>→</code> or <code>::=</code></td><td>"can be replaced by"</td></tr>
+  <tr><td><code>|</code></td><td>"or" — shorthand for several rules with the same left side</td></tr>
+  <tr><td><code>ε</code> (epsilon)</td><td>"nothing at all" — the empty string</td></tr>
+  <tr><td><code>⇒</code></td><td>"becomes, in one step" — used <em>between lines of working</em>, not inside a rule</td></tr>
+</table>
+
+<h3>The first grammar from your lecture</h3>
+
+<pre class="big"><code>E  → int
+E  → E Op E
+E  → ( E )
+Op → + | − | *</code></pre>
+
+<pre><code>T = { int , + , − , * , ( , ) }
+N = { E , Op }
+S = E</code></pre>
+
+<div class="card good">
+  <span class="lbl">Spot the superpower</span>
+  <p>Look at <code>E → ( E )</code>. The <code>E</code> appears on <strong>both sides</strong>. That is <strong>recursion</strong>, and it is the notepad the finite automaton was missing: the rule can apply to itself forever, so brackets nest to any depth from one line of grammar.</p>
+  <p>Exactly what chapter 1 said was impossible for regular expressions.</p>
+</div>
+
+<h3>The warning your notes attach to it</h3>
+
+<pre class="big"><code>E → int , E → E Op E , E → ( E )
+Op → + , Op → − , Op → *
+
+         ✗  THIS DOES NOT HANDLE PRECEDENCE</code></pre>
+
+<p>Chapter 5 shows exactly what goes wrong. Chapter 6 fixes it.</p>
+
+<h3>A note on notation you will see in the slides</h3>
+
+<table>
+  <tr><th>Convention</th><th>Means</th></tr>
+  <tr><td><code>A, B, C</code></td><td>non-terminals</td></tr>
+  <tr><td><code>t, u, v, w</code></td><td>terminals</td></tr>
+  <tr><td><code>α, β, γ, ω</code></td><td>arbitrary strings of terminals and non-terminals</td></tr>
+  <tr><td><code>α ⇒ β</code></td><td>β derives from α in <strong>one</strong> step</td></tr>
+  <tr><td><code>α ⇒* β</code></td><td>β derives from α in <strong>zero or more</strong> steps</td></tr>
+</table>
+
+<div class="card warn">
+  <span class="lbl">A CFG is not shorthand notation</span>
+  <p>Inside a CFG you may <strong>not</strong> use <code>*</code>, <code>|</code> or brackets as <em>regular-expression operators</em>. (The <code>|</code> for "or" between whole alternatives is fine; <code>a*</code> meaning "repeat" is not.) Convert it instead:</p>
+<pre style="margin:10px 0 0"><code>WANT:   S → a* b
+
+WRITE:  S → A b
+        A → A a | ε</code></pre>
+  <p>A likely exam question. The rule: repetition becomes a recursive non-terminal with an ε alternative.</p>
+</div>
+
+<p class="breath">end of chapter 2</p>
+
+<!-- ═══════════════ 3 ═══════════════ -->
+<div class="chapmark" id="c3"><span class="n">Chapter 3</span><span class="lec">Lecture 13 · 20 Oct</span>
+<h2>Derivations, leftmost and rightmost</h2></div>
+
+<div class="card def">
+  <span class="lbl">Definition — derivation</span>
+  <p>A <strong>derivation</strong> is the list of replacement steps from the start symbol down to a string of pure terminals.</p>
+  <p>Each half-finished line — one that still contains non-terminals — is a <strong>sentential form</strong> <span class="gloss">[a snapshot of the work in progress]</span>.</p>
+</div>
+
+<h3>The derivation from your notes</h3>
+
+<p>For <code>int + int * int</code>, using <code>E → int | E Op E</code>. The right-hand column says what changed — your notes leave that for you to work out.</p>
+
+<pre class="big"><code>  (i)    E
+  (ii)   E Op E                  E → E Op E
+  (iii)  E Op E Op E             the right E, same rule
+  (iv)   E Op E * E              Op → *
+  (v)    int Op E * E            E → int
+  (vi)   int Op int * E          E → int
+  (vii)  int Op int * int        E → int
+  (viii) int + int * int         Op → +     ✓ finished</code></pre>
+
+<p>Nothing clever happens. Pick a non-terminal, look up a rule, swap it out. When none remain, the grammar <strong>accepts</strong> the string.</p>
+
+<div class="card why">
+  <span class="lbl">What a derivation proves</span>
+  <p>If you can derive a string, it is grammatically legal. If no derivation exists, it is a syntax error. That is the parser's whole job restated: <em>find a derivation, or prove there isn't one.</em></p>
+</div>
+
+<h3>Leftmost and rightmost</h3>
+
+<p>At line (iii) above there were <em>two</em> <code>E</code>'s waiting. Which first? Fixing that choice gives the two names your lecture lists.</p>
+
+<div class="card def">
+  <span class="lbl">Definition</span>
+  <ul>
+    <li><strong>Leftmost derivation</strong> — always replace the <em>leftmost</em> non-terminal.</li>
+    <li><strong>Rightmost derivation</strong> — always replace the <em>rightmost</em> one. Also called the <strong>canonical</strong> derivation.</li>
+  </ul>
+  <p>Top-down parsers naturally produce leftmost derivations; bottom-up parsers produce rightmost ones, in reverse.</p>
+</div>
+
+<div class="cols">
+  <div class="col">
+    <h5>Leftmost</h5>
+<pre><code>E
+⇒ E + E
+⇒ int + E
+⇒ int + E * E
+⇒ int + int * E
+⇒ int + int * int</code></pre>
+  </div>
+  <div class="col">
+    <h5>Rightmost</h5>
+<pre><code>E
+⇒ E + E
+⇒ E + E * E
+⇒ E + E * int
+⇒ E + int * int
+⇒ int + int * int</code></pre>
+  </div>
+</div>
+
+<p class="plain"><b>The point</b>Different order of working, same final string, same structure. The order you happen to work in is <strong>not</strong> important — what matters is <em>which rules</em> you chose. That is chapter 5.</p>
+
+<p class="breath">end of chapter 3</p>
+
+<!-- ═══════════════ 4 ═══════════════ -->
+<div class="chapmark" id="c4"><span class="n">Chapter 4</span><span class="lec">Lecture 13 · 20 Oct</span>
+<h2>Parse trees and the AST</h2></div>
+
+<div class="card def">
+  <span class="lbl">Definition — parse tree</span>
+  <p>A <strong>parse tree</strong> is a derivation drawn as a tree:</p>
+  <ul>
+    <li>the <strong>root</strong> is the start symbol;</li>
+    <li>every <strong>internal node</strong> is a non-terminal, and its children are exactly the right-hand side of the rule used on it;</li>
+    <li>every <strong>leaf</strong> is a terminal.</li>
+  </ul>
+  <p>Read the leaves left to right and your original program comes back. Your notes call this the <strong>left-order traversal</strong>.</p>
+</div>
+
+<pre><code>int + int * int
+
+          E
+       ╱  │  ╲
+      E   +   E
+      │     ╱ │ ╲
+     int   E  *  E
+           │     │
+          int   int
+
+leaves, left to right:  int + int * int   ✓</code></pre>
+
+<h3>The example from the slides</h3>
+
+<p>The statement <code>while (ip &lt; z) ++ip;</code> — simplified to operators and operands:</p>
+
+<pre><code>            while
+            ╱    ╲
+          ╱        ╲
+        &lt;            ++
+      ╱   ╲           │
+    ip     z         ip
+
+read as:  a WHILE, whose condition is (ip &lt; z),
+          and whose body is (++ip)</code></pre>
+
+<h3>Parse tree vs abstract syntax tree</h3>
+
+<div class="card def">
+  <span class="lbl">Definition — AST</span>
+  <p>An <strong>abstract syntax tree</strong> is the parse tree with the scaffolding removed: no helper non-terminals, no brackets, just operators and operands.</p>
+  <p>The parse tree records <em>how the grammar was applied</em>. The AST records <em>what the program means</em>.</p>
+</div>
+
+<div class="cols">
+  <div class="col">
+    <h5>Parse tree for a*b+c</h5>
+<pre><code>        ⟨expr⟩
+      ╱   │   ╲
+  ⟨expr⟩  +  ⟨term⟩
+     │          │
+  ⟨term⟩   ⟨primary⟩
+  ╱  │  ╲       │
+⟨term⟩ * ⟨prim⟩ c
+  │        │
+⟨prim⟩     b
+  │
+  a</code></pre>
+  </div>
+  <div class="col ok">
+    <h5>AST for a*b+c</h5>
+<pre><code>      ( + )
+      ╱   ╲
+   ( * )    c
+   ╱   ╲
+  a     b</code></pre>
+  </div>
+</div>
+
+<pre><code>and for  x = 2 + 3 :
+
+        ( = )
+        ╱   ╲
+  ⟨id: x⟩   ( + )
+            ╱   ╲
+     ⟨num: 2⟩   ⟨num: 3⟩</code></pre>
+
+<div class="card good">
+  <span class="lbl">Why the tree, not the list, is the real answer</span>
+  <p>A derivation records the <em>order you happened to work in</em> — an accident of how you were writing. A tree records the <strong>structure</strong>: which operator owns which operands.</p>
+  <p>The next phase generates code by <em>walking this tree</em>. So the tree is, literally, the meaning of the program. Which leads straight to the catastrophe in chapter 5: if one program yields <strong>two different trees</strong>, it has two different meanings.</p>
+</div>
+
+<h3>Semantic actions — a preview</h3>
+
+<div class="card def">
+  <span class="lbl">Definition — semantic action</span>
+  <p>A <strong>semantic action</strong> is a small piece of code attached to a grammar rule, which runs when that rule is applied. Building output <em>while</em> parsing, rather than afterwards, is called <strong>syntax-directed translation</strong>.</p>
+</div>
+
+<pre><code>GRAMMAR RULE              SEMANTIC ACTION
+
+E1 → E2 + T               E1.val = E2.val + T.val
+E  → T                    E.val  = T.val
+T  → int                  T.val  = int.lexval
+
+parsing  2 + 3  now also COMPUTES 5,
+with no separate pass.</code></pre>
+
+<p class="plain"><b>The subscripts</b><code>E1</code> and <code>E2</code> are the <em>same</em> non-terminal <code>E</code>, numbered only so the action can say which one it means — the parent or the child.</p>
+
+<p class="breath">end of chapter 4</p>
+
+<!-- ═══════════════ 5 ═══════════════ -->
+<div class="chapmark" id="c5"><span class="n">Chapter 5</span><span class="lec">Lecture 13 · 20 Oct</span>
+<h2>Ambiguity</h2></div>
+
+<p class="plain"><b>Your lecture's own heading</b><em>"A serious problem in parsing → precedence handling"</em></p>
+
+<p>Take <code>E → int | E + E | E * E</code> and the input <code>3 + 4 * 5</code>. Build the tree <strong>two different ways</strong>:</p>
+
+<div class="cols">
+  <div class="col">
+    <h5>Tree 1 — + on top</h5>
+<pre><code>      E
+   ╱  │  ╲
+  E   +   E
+  │     ╱ │ ╲
+  3    E  *  E
+       │     │
+       4     5</code></pre>
+    <p style="font-size:14.5px;margin:10px 0 0"><strong>= 3 + (4×5) = 23</strong></p>
+  </div>
+  <div class="col">
+    <h5>Tree 2 — * on top</h5>
+<pre><code>      E
+   ╱  │  ╲
+  E   *   E
+╱ │ ╲     │
+E  +  E   5
+│     │
+3     4</code></pre>
+    <p style="font-size:14.5px;margin:10px 0 0"><strong>= (3+4)×5 = 35</strong></p>
+  </div>
+</div>
+
+<p><strong>Same grammar. Same input. Two trees. Two different answers.</strong></p>
+
+<div class="card def">
+  <span class="lbl">Definition — ambiguous grammar</span>
+  <p>A grammar is <strong>ambiguous</strong> if there exists at least one string with <strong>two or more different parse trees</strong>.</p>
+  <p>Your notes, word for word: <em>"any grammar having 2 parse trees is called ambiguous grammar."</em> Equivalently: two different <em>leftmost</em> derivations.</p>
+</div>
+
+<div class="card why">
+  <span class="lbl">Where the ambiguity comes from — the question from your notes</span>
+  <p>Your page asks it directly: <em>"How do we decide that <code>+</code> opens first or <code>*</code>?"</em> And answers it: <em>"op: + | − | * | / → yeh sab aik hi level pay hain"</em> — <strong>they are all at the same level</strong>.</p>
+  <p>That is the disease, named. The rule <code>Op → + | − | * | /</code> treats all four operators as interchangeable. The grammar has <em>no way to say</em> that <code>*</code> is stronger than <code>+</code>. Nothing in the rules prefers one tree.</p>
+</div>
+
+<div class="card bad">
+  <span class="lbl">The consequence</span>
+  <p>Your notes: <em>"Impossible to write a top-down parser for an ambiguous grammar."</em></p>
+  <p>Why: a top-down parser must <em>choose</em> a rule from the token it can see. Looking at <code>3</code>, both <code>E → E + E</code> and <code>E → E * E</code> are possible, and nothing distinguishes them. The parser either guesses and later undoes its work, or it stalls.</p>
+  <p><strong>So you fix the grammar before writing any parser.</strong></p>
+</div>
+
+<h3>The second flavour</h3>
+
+<p><code>E → int | E − E</code> on <code>8 − 3 − 2</code>:</p>
+
+<pre><code>  (8 − 3) − 2 = 3        vs        8 − (3 − 2) = 7</code></pre>
+
+<p>Both operators are identical here, so "which is stronger" cannot help. What is missing is a rule about <strong>which side groups first</strong>.</p>
+
+<table>
+  <tr><th></th><th>Precedence problem</th><th>Associativity problem</th></tr>
+  <tr><td>Looks like</td><td><code>3 + 4 * 5</code></td><td><code>8 − 3 − 2</code></td></tr>
+  <tr><td>Question</td><td>which operator is stronger?</td><td>same operator — which end first?</td></tr>
+  <tr><td>Cured in</td><td>chapter 6 — <em>layering</em></td><td>chapter 7 — <em>side of recursion</em></td></tr>
+</table>
+
+<p class="breath">end of chapter 5 — the next two chapters are the cure</p>
+
+<!-- ═══════════════ 6 ═══════════════ -->
+<div class="chapmark" id="c6"><span class="n">Chapter 6</span><span class="lec">Lecture 13 · 20 Oct</span>
+<h2>Fixing precedence by layering</h2></div>
+
+<p>First the intuition. <strong>Why does <code>*</code> "bind tighter" than <code>+</code>?</strong></p>
+
+<p>Picture <code>3 + 4 * 5</code> as three people and two ropes. The <code>*</code> rope is <em>short and tight</em>: it pulls 4 and 5 into a single lump. The <code>+</code> rope is <em>long and loose</em>: it then ties 3 to that whole lump. The tight rope is tied first, so it ends up <em>deeper inside</em>.</p>
+
+<p class="plain"><b>The visual rule</b>Tighter-binding operators sit <em>lower</em> in the parse tree. Looser ones sit <em>higher</em>, near the root.</p>
+
+<p>Your notes name the technique: <em>"Resolving ambiguity — layering — introduce new non-terminal."</em></p>
+
+<div class="card def">
+  <span class="lbl">The layering rule</span>
+  <p><strong>Give each precedence level its own non-terminal.</strong> Loosest at the top, tightest at the bottom. Each layer may only reach <em>downward</em> to the layer beneath — never sideways, never up.</p>
+</div>
+
+<div class="card why">
+  <span class="lbl">Why that one-way street fixes everything</span>
+  <p>If the <code>+</code> layer can only be built out of <code>*</code>-layer pieces, then a <code>*</code> can <em>never</em> end up above a <code>+</code>. The wrong tree is not rejected — it is <strong>impossible to construct</strong>. Nothing is left to be ambiguous about.</p>
+</div>
+
+<h3>Building it, layer by layer</h3>
+
+<table>
+  <tr><th>Layer</th><th>Name</th><th>Operators</th><th>Binds</th></tr>
+  <tr><td>1 — top</td><td><code>E</code> — Expression</td><td><code>+</code> <code>−</code></td><td>loosest</td></tr>
+  <tr><td>2</td><td><code>T</code> — Term</td><td><code>*</code> <code>/</code></td><td>tighter</td></tr>
+  <tr><td>3</td><td><code>P</code> — Power</td><td><code>^</code></td><td>tighter still</td></tr>
+  <tr><td>4 — bottom</td><td><code>F</code> — Factor</td><td><code>int</code>, <code>( E )</code></td><td>tightest: the atoms</td></tr>
+</table>
+
+<pre class="big"><code>E → E + T  |  E − T  |  T
+T → T * P  |  T / P  |  P
+P → F ^ P  |  F
+F → int    |  ( E )</code></pre>
+
+<p class="plain"><b>Read line 1 aloud</b>"An expression is: an expression, plus a term — or an expression, minus a term — or just a term on its own."</p>
+
+<p>Every line has the same shape: <em>either apply my own operator and then drop one layer, or pass straight through to the layer below.</em></p>
+
+<h3>The derivation from your lecture, annotated</h3>
+
+<p>Your notes derive <code>int + int * int</code> in this grammar. Watch the layers do the work. (Rightmost derivation — it replaces the rightmost non-terminal each time.)</p>
+
+<pre><code>  (i)    E
+  (ii)   E + T              only E → E + T puts a + at the top
+  (iii)  E + T * P          the T becomes T * P — the * lands BELOW the +
+  (iv)   T + T * P          left E drops a layer:  E → T
+  (v)    T + T * int        P → F → int
+  (vi)   P + T * int        T → P
+  (vii)  P + P * int        T → P again
+  (viii) int + int * int    P → F → int, twice      ✓</code></pre>
+
+<div class="card good">
+  <span class="lbl">The crucial moment is line (iii)</span>
+  <p>After line (ii) the right-hand side is a <strong><code>T</code></strong>, not an <code>E</code>. And a <code>T</code> has <strong>no rule containing <code>+</code></strong> — check the grammar. So that side physically cannot produce another <code>+</code>; it can only produce <code>*</code> and below.</p>
+  <p>Not a preference. A structural impossibility. <span style="color:var(--green);font-weight:700">Unambiguous.</span></p>
+</div>
+
+<pre><code>the only tree this grammar can build for 3 + 4 * 5:
+
+           E
+        ╱  │  ╲
+       E   +   T
+       │     ╱ │ ╲
+       T    T  *  P
+       │    │     │
+       P    P     F
+       │    │     │
+       F    F     5
+       │    │
+       3    4
+
+   = 3 + (4 × 5)        and nothing else exists</code></pre>
+
+<h3>Then what are brackets for?</h3>
+
+<div class="card why">
+  <span class="lbl">The escape hatch</span>
+  <p><code>F → ( E )</code> is the way out. You have fallen to the bottom layer, and this rule throws you straight back to the top. That is exactly why <code>(3+4)*5</code> works: brackets let a loose operator appear <em>beneath</em> a tight one, which layering would otherwise forbid.</p>
+</div>
+
+<div class="card good">
+  <span class="lbl">And this does NOT reintroduce ambiguity</span>
+<pre style="margin:10px 0"><code>3 + 4 * 5         one input
+( 3 + 4 ) * 5     a DIFFERENT input</code></pre>
+  <p>Those are not the same program — the brackets are real tokens in the file. Two different strings are allowed to have two different trees; that is correctness, not ambiguity. Ambiguity means <em>one</em> string with two trees.</p>
+<pre style="margin:10px 0 0"><code>layering  →  what happens when the programmer says nothing
+brackets  →  the programmer overriding that default, out loud</code></pre>
+</div>
+
+<details>
+  <summary>Drill — draw the parse tree for <code>( 3 + 4 ) * 5</code>.</summary>
+  <div class="ans">
+<pre><code>        E
+        │
+        T
+     ╱  │  ╲
+    T   *   P
+    │       │
+    P       F
+    │       │
+    F       5
+ ╱  │  ╲
+(   E   )        ← the escape hatch fired here
+  ╱ │ ╲
+ E  +  T
+ │     │
+ T     P
+ │     │
+ P     F
+ │     │
+ F     4
+ │
+ 3</code></pre>
+    <p>The <code>+</code> ended up <em>below</em> the <code>*</code> — only possible because <code>F → ( E )</code> re-entered the top layer.</p>
+  </div>
+</details>
+
+<p class="breath">end of chapter 6</p>
+
+<!-- ═══════════════ 7 ═══════════════ -->
+<div class="chapmark" id="c7"><span class="n">Chapter 7</span><span class="lec">Lecture 13 · 20 Oct</span>
+<h2>Associativity</h2></div>
+
+<p>Layering sorted out <em>different</em> operators. Now: the <strong>same</strong> operator, twice in a row.</p>
+
+<table>
+  <tr><th>Expression</th><th>Means</th><th>Groups from</th></tr>
+  <tr><td><code>3 + 4 + 5</code></td><td><code>(3+4)+5</code></td><td>the <strong>left</strong></td></tr>
+  <tr><td><code>3 × 4 × 5</code></td><td><code>(3×4)×5</code></td><td>the <strong>left</strong></td></tr>
+  <tr><td><code>3 ^ 4 ^ 5</code></td><td><code>3^(4^5)</code></td><td>the <strong>right</strong> ← the odd one out</td></tr>
+</table>
+
+<div class="card why">
+  <span class="lbl">Why power is the odd one out</span>
+  <p><code>(3^4)^5</code> is already written more simply as <code>3^20</code> — the left-grouping reading would make the double-power notation pointless. Mathematics therefore reads towers of powers from the top down. Your notes say it plainly: <em>"Power is a right associative operator."</em></p>
+  <p>For <code>+</code> and <code>−</code> the reason is different: <code>8 − 3 − 2</code> must be 3, not 7, so they group from the left.</p>
+</div>
+
+<h3>The rule that controls it</h3>
+
+<div class="card def">
+  <span class="lbl">Memorise these two shapes</span>
+<pre style="margin:0"><code>A → A op B | B      recursion on the LEFT
+                    ⇒ LEFT-associative
+                    ⇒ (a op b) op c
+
+A → B op A | B      recursion on the RIGHT
+                    ⇒ RIGHT-associative
+                    ⇒ a op (b op c)</code></pre>
+  <p>The tree grows on the side the recursion is on.</p>
+</div>
+
+<p>Your notes state it in the lecturer's words: <em>"power is right associative, so wo wala symbol power kay baad aaye ga"</em> — <strong>the repeating symbol goes after the <code>^</code></strong>.</p>
+
+<div class="cols">
+  <div class="col ok">
+    <h5>Correct for ^</h5>
+<pre><code>P → F ^ P | F
+      ↑
+   the P (recursion)
+   comes AFTER the ^
+
+3 ^ 4 ^ 5:
+
+      ^
+    ╱   ╲
+   3     ^
+       ╱   ╲
+      4     5
+
+ = 3^(4^5)   ✓</code></pre>
+  </div>
+  <div class="col no">
+    <h5>Wrong for ^</h5>
+<pre><code>P → P ^ F | F
+    ↑
+ the P comes
+ BEFORE the ^
+
+3 ^ 4 ^ 5:
+
+        ^
+      ╱   ╲
+     ^     5
+   ╱   ╲
+  3     4
+
+ = (3^4)^5   ✗</code></pre>
+  </div>
+</div>
+
+<p class="plain"><b>Both sides of your notes agree</b>Your lecture-13 page writes <code>P → F ^ P</code> for right-associative and <code>P → P ^ F</code> for left-associative, which matches the standard result above. Derive <code>3^4^5</code> both ways if ever in doubt — the derivation never lies.</p>
+
+<h3>And why + and − look the way they do</h3>
+
+<pre><code>E → E + T | E − T | T       recursion on the LEFT
+
+8 − 3 − 2
+
+        E
+     ╱  │  ╲
+    E   −   T
+  ╱ │ ╲     │
+ E  −  T    2
+ │     │
+ T     3
+ │
+ 8
+
+the deeper subtraction is the LEFT one  ⇒ (8−3)−2 = 3  ✓</code></pre>
+
+<div class="card warn">
+  <span class="lbl">Remember this sentence — it sets up chapter 13</span>
+  <p>Left-associative operators <strong>force</strong> you to write left-recursive rules. It is not sloppiness; the mathematics demands it. And left recursion is the one thing a top-down parser cannot survive.</p>
+</div>
+
+<details>
+  <summary>Drill — what does <code>2 ^ 3 ^ 2</code> evaluate to, and which tree gives it?</summary>
+  <div class="ans">
+    <p><code>2^(3^2) = 2^9 = <strong>512</strong></code>, from the right-leaning tree built by <code>P → F ^ P</code>.</p>
+    <p>The wrong grammar gives <code>(2^3)^2 = 8^2 = 64</code>. Same symbols, same input, answer off by a factor of eight — purely from which side the recursion sat on.</p>
+  </div>
+</details>
+
+<p class="breath">end of chapter 7</p>
+
+<!-- ═══════════════ 8 ═══════════════ -->
+<div class="chapmark" id="c8"><span class="n">Chapter 8</span><span class="lec">Lecture 13 · 20 Oct</span>
+<h2>Two more grammars</h2></div>
+
+<h3>8.1 Balanced parentheses</h3>
+
+<p>This is the example that proved regular expressions were not enough (chapter 1), so it is satisfying to see a CFG do it in two lines.</p>
+
+<pre class="big"><code>P → P S | ε
+S → ( P )</code></pre>
+
+<p class="plain"><b>Read it</b>A paren-sequence is a paren-sequence followed by one more balanced group, or nothing at all. A group is an open bracket, a paren-sequence, a close bracket.</p>
+
+<pre><code>trace  ( ( ) ( ) )
+
+P ⇒ P S ⇒ ε S ⇒ S
+  ⇒ ( P )
+  ⇒ ( P S )
+  ⇒ ( P S S )
+  ⇒ ( S S )
+  ⇒ ( ( P ) S )   ⇒ ( ( ) S )
+  ⇒ ( ( ) ( P ) ) ⇒ ( ( ) ( ) )     ✓</code></pre>
+
+<div class="card good">
+  <span class="lbl">Why imbalance is impossible</span>
+  <p><code>( ( )</code> simply cannot be derived — every <code>(</code> introduced by <code>S → ( P )</code> arrives with its matching <code>)</code> attached. The grammar makes imbalance <strong>unconstructible</strong>, which is stronger than checking for it afterwards.</p>
+</div>
+
+<div class="card warn">
+  <span class="lbl">Check this against your slides</span>
+  <p>Your notes write the two rules as <code>P → P S | ε</code> and <code>P → ( S )</code>. The second must use a <em>different</em> non-terminal on the left — <code>S → ( P )</code> — or the two layers collapse into one and the grammar stops working.</p>
+</div>
+
+<h3>8.2 A grammar for regular expressions</h3>
+
+<p>A nice twist from your notes: writing a CFG whose language is the set of regular expressions. The first attempt is ambiguous.</p>
+
+<pre><code>R → a | b | c | …          AMBIGUOUS
+R → ε
+R → R R                    concatenation
+R → R "|" R                alternation
+R → R *                    repetition
+R → ( R )</code></pre>
+
+<p>Ambiguous for exactly the reason of chapter 5: <code>a|b c</code> could group as <code>a|(bc)</code> or <code>(a|b)c</code>. The cure is the same — <strong>layer it</strong>, loosest operator at the top. Precedence of regex operators: <code>|</code> loosest, then concatenation, then <code>*</code> tightest.</p>
+
+<pre class="big"><code>R → S | R "|" S            layer 1:  alternation   (loosest)
+S → T | S T                layer 2:  concatenation
+T → U | T *                layer 3:  star          (tightest)
+U → a | b | c | …          layer 4:  atoms
+U → "ε"
+U → ( R )</code></pre>
+
+<p>Compare that shape with the <code>E / T / P / F</code> grammar in chapter 6. It is the identical pattern: four layers, each reaching only downward, atoms and brackets at the bottom. Learn the pattern once and you can disambiguate any operator grammar they put in front of you.</p>
+
+<details>
+  <summary>Drill — in the layered regex grammar, how does <code>a|bc*</code> group?</summary>
+  <div class="ans">
+    <p><code>a | (b (c*))</code>. The <code>*</code> is in the lowest layer so it binds to <code>c</code> alone; concatenation is the middle layer so it joins <code>b</code> and <code>c*</code>; <code>|</code> is the top layer so it splits the whole thing last.</p>
+  </div>
+</details>
+
+<h3>8.3 A grammar for statements</h3>
+
+<p>From the slides, the shape a real language takes:</p>
+
+<pre><code>STMT  → if EXPR then STMT else STMT
+      | while EXPR do STMT
+      | EXPR
+
+EXPR  → EXPR + EXPR
+      | EXPR − EXPR
+      | id
+
+BLOCK → { STMTS }
+STMTS → STMT ; STMTS | ε</code></pre>
+
+<p>Every construct you write daily is one of these rules. The <code>if … else</code> line in particular is the source of chapter 21's problem.</p>
+
+<p class="breath">end of chapter 8</p>
+
+<!-- ═══════════════ 9 ═══════════════ -->
+<div class="chapmark" id="c9"><span class="n">Chapter 9</span><span class="lec">Slides</span>
+<h2>Facts about ambiguity</h2></div>
+
+<p>Three statements that are easy to get wrong in an exam, and one question worth asking.</p>
+
+<div class="card def">
+  <span class="lbl">Fact 1 — ambiguity belongs to the GRAMMAR, not the language</span>
+<pre style="margin:10px 0 0"><code>E → int | E + E           AMBIGUOUS
+E → E + T | T , T → int   UNAMBIGUOUS
+
+SAME language.  Different grammars.</code></pre>
+  <p>So "is this language ambiguous?" is usually the wrong question. Ask "is this <em>grammar</em> ambiguous?"</p>
+</div>
+
+<div class="card def">
+  <span class="lbl">Fact 2 — some languages are INHERENTLY ambiguous</span>
+  <p>For a few languages, <strong>no</strong> unambiguous grammar exists at all. Not "hard to find" — mathematically impossible. Rare, and not a programming language you will meet, but the term is examinable.</p>
+</div>
+
+<div class="card bad">
+  <span class="lbl">Fact 3 — there is NO ALGORITHM to detect or remove ambiguity</span>
+  <p>You cannot write a program that reads any grammar and answers "is this ambiguous?". The problem is undecidable.</p>
+  <p>Which means disambiguating a grammar is <strong>hand work</strong>, guided by the patterns in chapters 6 and 7. That is why those patterns are worth memorising — there is no tool to fall back on.</p>
+</div>
+
+<h3>Is ambiguity always a problem?</h3>
+
+<pre><code>E → int | E + E
+
+   3 + 4 + 5
+   tree 1:  (3+4)+5 = 12
+   tree 2:  3+(4+5) = 12      SAME ANSWER
+
+   addition is associative, so it does not matter.
+
+
+E → int | E + E | E − E
+
+   8 − 3 − 2
+   tree 1:  (8−3)−2 = 3
+   tree 2:  8−(3−2) = 7       DIFFERENT
+
+   now it matters.</code></pre>
+
+<p class="plain"><b>The honest answer</b>It depends on the semantics. But a compiler must be predictable for <em>every</em> program, not just the lucky ones — so grammars are disambiguated regardless.</p>
+
+<h3>Resolving ambiguity outside the grammar</h3>
+
+<pre><code>many parser generators (yacc, bison) let you write
+PRECEDENCE DECLARATIONS instead of layering:
+
+   %left   '+' '−'
+   %left   '*' '/'
+   %right  '^'
+
+keep the short ambiguous grammar,
+and declare how to break the ties.</code></pre>
+
+<p>Same effect as layering, far less typing. The grammar stays ambiguous; the generator is simply told which tree to prefer. Chapter 21 uses this idea for the dangling else.</p>
+
+<p class="breath">end of chapter 9</p>
+
+<!-- ═══════════════ 10 ═══════════════ -->
+<div class="chapmark" id="c10"><span class="n">Chapter 10</span><span class="lec">Lecture 13 · 20 Oct</span>
+<h2>Top-down and bottom-up</h2></div>
+
+<p>You have a clean grammar and a list of tokens. You want the tree. There are exactly two directions.</p>
+
+<div class="card def">
+  <span class="lbl">Definition — the two families</span>
+  <ul>
+    <li><strong>Top-down parsing</strong> — begin at the <em>start symbol</em> and work downward toward the tokens. Builds the tree <strong>root first</strong>. Produces a leftmost derivation. Example: <strong>recursive descent</strong>, LL parsers.</li>
+    <li><strong>Bottom-up parsing</strong> — begin at the <em>tokens</em> and combine upward until you reach the start symbol. Builds the tree <strong>leaves first</strong>. Example: LR, SLR, LALR — what <code>yacc</code> generates.</li>
+  </ul>
+</div>
+
+<pre class="big"><code>  TOP-DOWN                     BOTTOM-UP
+  "I'm building an             "I see a 3 and a 4...
+   expression. What's           those make a term...
+   it made of?"                 that makes an expression."
+
+       E     ①                       E      ⑤
+    ╱  │  ╲                       ╱  │  ╲
+   E   +   T   ②                 E   +   T    ④
+   │       │                     │       │
+   T       P   ③                 T       P    ③
+   │       │                     │       │
+   3       4   ④                 3       4    ①②</code></pre>
+
+<h3>"If backtracking → not a good parser"</h3>
+
+<div class="card def">
+  <span class="lbl">Definition — backtracking</span>
+  <p><strong>Backtracking</strong> is when a parser picks a rule, runs forward with it, discovers it was wrong, <strong>undoes everything</strong>, and tries another.</p>
+</div>
+
+<div class="card bad">
+  <span class="lbl">Why it is unacceptable</span>
+  <ul>
+    <li><strong>Speed.</strong> In the worst case the work doubles with every wrong turn — exponential time.</li>
+    <li><strong>Error messages.</strong> By the time you finally fail, you have thrown away all the places you had been. You can only say "something is wrong somewhere", which helps nobody.</li>
+  </ul>
+  <p>A good parser is <strong>predictive</strong>: it decides correctly using only the token in front of it, and never takes anything back. That requirement is what forces the grammar surgery in chapters 13–19.</p>
+</div>
+
+<h3>Tree vs graph</h3>
+
+<p>The margin note on your page — <em>"diff b/w graph and tree is that only one path to reach any node"</em> — is worth keeping, because the parser depends on it.</p>
+
+<pre><code>in a TREE   each node has exactly ONE parent
+            ⇒ exactly ONE route from root to any node
+            ⇒ the parse tree is a UNIQUE record of structure
+
+which is why a string with TWO possible trees
+is a catastrophe rather than a curiosity.</code></pre>
+
+<p class="breath">end of chapter 10</p>
+
+<!-- ═══════════════ 11 ═══════════════ -->
+<div class="chapmark" id="c11"><span class="n">Chapter 11</span><span class="lec">Slides</span>
+<h2>Parsing as a search</h2></div>
+
+<p>The top-down parsing slides take a different angle on the same problem, and it is worth seeing because it explains <em>why</em> recursive descent looks the way it does.</p>
+
+<div class="card def">
+  <span class="lbl">The reframing</span>
+<pre style="margin:0"><code>think of every SENTENTIAL FORM as a NODE in a graph.
+
+an EDGE joins two nodes if one production rule
+turns the first into the second.
+
+PARSING = finding a PATH
+          from the start symbol
+          to the input string.</code></pre>
+</div>
+
+<pre><code>                     E
+                   ╱ │ ╲
+            E + T    T    E − T          ← apply one rule
+            ╱  ╲     │     ╱  ╲
+          …     …    …    …     …        ← apply another
+
+somewhere down here is   int + int * int</code></pre>
+
+<h3>Two ways to search that graph</h3>
+
+<div class="cols">
+  <div class="col">
+    <h5>Leftmost BFS</h5>
+<pre><code>breadth-first:
+explore ALL nodes one
+step away, then all
+two steps away, …
+
+keeps a WORKLIST of
+sentential forms
+
+✓ works on ALL grammars
+✓ finds the answer if
+  one exists
+
+✗ EXPONENTIAL MEMORY
+  — the worklist explodes</code></pre>
+  </div>
+  <div class="col">
+    <h5>Leftmost DFS</h5>
+<pre><code>depth-first:
+pick one rule, follow
+it as far as it goes,
+back up if it fails
+
+keeps only the CURRENT
+path — a STACK
+
+✓ LINEAR memory
+✓ becomes RECURSIVE
+  DESCENT
+
+✗ dies on LEFT RECURSION
+  (infinite descent)</code></pre>
+  </div>
+</div>
+
+<div class="card good">
+  <span class="lbl">The trade, in one line</span>
+<pre style="margin:0"><code>BFS   always works, unaffordable memory
+DFS   affordable memory, needs a WELL-BEHAVED grammar
+
+compilers choose DFS,
+and then FIX THE GRAMMAR to make it safe.</code></pre>
+  <p>Chapters 13–19 are exactly that fixing.</p>
+</div>
+
+<h3>Predictive parsing and lookahead</h3>
+
+<div class="card def">
+  <span class="lbl">Definition — lookahead</span>
+  <p><strong>Lookahead</strong> is peeking at the upcoming token(s) <em>without consuming them</em>, so the parser can pick the right rule the first time instead of guessing.</p>
+<pre style="margin:10px 0 0"><code>with ENOUGH lookahead, DFS never backtracks.
+one token is usually enough  →  LL(1).</code></pre>
+</div>
+
+<h4>A worked predictive parse</h4>
+
+<p>The slides use a deliberately <em>right</em>-recursive grammar — chosen precisely so DFS survives it:</p>
+
+<pre class="big"><code>E → T | T + E
+T → int | ( E )
+
+input:   int + ( int + int )</code></pre>
+
+<pre><code>goal E , lookahead int
+    both E-rules can start with int → need more lookahead
+    the token AFTER int is '+' → choose E → T + E
+
+  goal T , lookahead int    → T → int        ✓ consume int
+  match '+'                                  ✓ consume +
+  goal E , lookahead '('
+      → T → ( E )
+    match '('                                ✓ consume (
+      goal E , lookahead int
+          next-after is '+' → E → T + E
+        goal T → int                         ✓ consume int
+        match '+'                            ✓ consume +
+        goal E , lookahead int
+            next-after is ')' → E → T
+          goal T → int                       ✓ consume int
+    match ')'                                ✓ consume )
+
+input exhausted, no backtracking.            ✓ ACCEPTED</code></pre>
+
+<div class="card warn">
+  <span class="lbl">Note the grammar the slides chose</span>
+<pre style="margin:10px 0 0"><code>slides:      E → T | T + E      ← RIGHT-recursive
+your notes:  E → E + T | T      ← LEFT-recursive</code></pre>
+  <p>Not a contradiction. The slides dodged chapter 13's problem by writing the grammar right-recursive from the start. Your notes write the natural left-recursive one and then show how to repair it. Both are correct; know both.</p>
+</div>
+
+<p class="breath">end of chapter 11</p>
+
+<!-- ═══════════════ 12 ═══════════════ -->
+<div class="chapmark" id="c12"><span class="n">Chapter 12</span><span class="lec">Lecture 14 · 27 Oct</span>
+<h2>Recursive descent</h2></div>
+
+<p>The most likely exam question: <em>given a grammar, write the parser.</em> The good news is that it is almost mechanical — the code ends up looking like the grammar.</p>
+
+<div class="card def">
+  <span class="lbl">Definition — recursive descent parsing</span>
+  <p>A <strong>recursive descent parser</strong> is a top-down parser written as a set of ordinary functions that call each other. No tables, no generator tools — you write it by hand.</p>
+</div>
+
+<h3>The two rules — the entire method</h3>
+
+<div class="card good">
+  <span class="lbl">Rule 1 — every NON-TERMINAL becomes a FUNCTION</span>
+  <p>Grammar has <code>E</code>, <code>T</code>, <code>P</code>, <code>F</code>? Your parser has <code>E()</code>, <code>T()</code>, <code>P()</code>, <code>F()</code>. A non-terminal on the right-hand side becomes a <em>call</em> to its function.</p>
+</div>
+
+<div class="card good">
+  <span class="lbl">Rule 2 — every TERMINAL becomes an IF-CHECK</span>
+  <p>Your notes: <em>"Every terminal → if condition check (but required — then error, not available)."</em></p>
+  <p>So: <em>is the current token this terminal? If yes, move on. If no, call <code>error()</code>.</em></p>
+</div>
+
+<pre><code>the three pieces of shared machinery:
+
+token          // the token we are looking at right now
+nextToken()    // ask the scanner for the following one
+error(n)       // report error number n</code></pre>
+
+<h3>How token and nextToken() move</h3>
+
+<pre class="big"><code>  input:  ( ( x ) )            // the token list from the scanner
+            ▲
+            └── a hidden pointer, owned by nextToken()
+
+  token                        // ONE variable holding ONE token</code></pre>
+
+<pre><code>func nextToken() {
+    move the pointer forward by one    // step right in the list
+    return the token it now points at  // hand that token back
+}
+
+so this line:
+
+    token = nextToken();
+
+means: "throw away the token I was holding,
+        put the NEXT one in my hand"</code></pre>
+
+<pre><code>  START                  token = (
+  input:  ( ( x ) )
+          ▲
+
+  token = nextToken()    token = (      // the 2nd bracket now
+  input:  ( ( x ) )
+            ▲
+
+  token = nextToken()    token = x
+  input:  ( ( x ) )
+              ▲</code></pre>
+
+<div class="card good">
+  <span class="lbl">The two words</span>
+<pre style="margin:0"><code>PEEK / LOOKAHEAD   reading `token` without calling nextToken()
+                   free, repeatable
+
+CONSUME / EAT      token = nextToken();
+                   happens ONCE, no going back</code></pre>
+<pre style="margin:10px 0 0"><code>the bug this prevents:
+
+    if (token == '(') {
+        S();                  // forgot to eat the '('
+    }                         // S() sees the SAME '(' again
+                              // → calls itself → forever</code></pre>
+</div>
+
+<h3>About <code>error(5)</code></h3>
+
+<p class="plain"><b>From your notes</b>The number is an <strong>index into a table of errors</strong>. Rather than scattering message text through the parser, every failure point gets a number, and one table maps numbers to readable messages. The margin note is the exam point: <em>all errors must be checked</em> — every terminal position needs its own branch, or a broken program slips through.</p>
+
+<h3>Example 1 — the simplest possible parser</h3>
+
+<pre class="big"><code>GRAMMAR                  PARSER
+
+A → a B                  func A() {
+                             if (token != 'a')       // Rule 2
+                                 error(5);
+                             else
+                                 token = nextToken(); // consume
+                             B();                     // Rule 1
+                         }
+
+B → +                    func B() {
+                             if (token != '+')
+                                 error(6);
+                             else
+                                 token = nextToken();
+                         }</code></pre>
+
+<pre><code>run on  a +
+
+1. token = 'a'.  Call A(). Check passes → consume. token = '+'
+2. A() calls B(). Check passes → consume. Input finished.
+3. No error raised ⇒ the input is legal.            ✓
+
+run on  a 7
+
+2. B() finds '7', not '+'  →  error(6) fires.       ✗</code></pre>
+
+<h3>Example 2 — choosing between alternatives</h3>
+
+<p>Now a rule with an <code>|</code> in it: <code>A → a X | b Y</code>. Your notes show a first attempt crossed out:</p>
+
+<pre><code>if (token != 'a' &amp;&amp; token != 'b')      ✗ crossed out — rightly
+    error(7);</code></pre>
+
+<p>It <em>does</em> detect an illegal token. But it never records <strong>which branch you are in</strong>, so afterwards you cannot tell whether to call <code>X()</code> or <code>Y()</code>. The repair is to let the token <em>choose</em> the rule:</p>
+
+<pre class="big"><code>func A() {
+    if (token == 'a') {          // this token selects alternative 1
+        token = nextToken();
+        X();
+    }
+    else if (token == 'b') {     // this token selects alternative 2
+        token = nextToken();
+        Y();
+    }
+    else {                       // neither — nothing can apply
+        error(7);
+    }
+}</code></pre>
+
+<div class="card why">
+  <span class="lbl">The principle hiding in that code</span>
+  <p>The parser chose its rule by looking at <strong>one single token</strong>. For that to be possible, <em>no two alternatives of the same non-terminal may start with the same token</em>.</p>
+  <p>A grammar satisfying this is called <strong>LL(1)</strong> <span class="gloss">[scan Left to right, build a Leftmost derivation, using 1 token of lookahead]</span>. When two alternatives <em>do</em> start alike, you repair it with left factoring — chapter 19.</p>
+</div>
+
+<h3>Example 3 — <code>E → E + T</code>, and the trouble</h3>
+
+<pre><code>func E() {
+    E();                    ← Rule 1, applied literally
+    if (token != '+')
+        error();
+    else
+        token = nextToken();
+    T();
+}</code></pre>
+
+<p>Your notes mark this one: <em>"left recursion (occurs due to left associative operators)"</em>. Chapter 13 is about why this code is fatal.</p>
+
+<h3>Example 4 — a grammar with real nesting</h3>
+
+<pre class="big"><code>S → ( S ) | x
+
+func S() {
+
+    if (token == '(') {           // we saw '(' → use rule S → ( S )
+
+        token = nextToken();      // eat the '('
+
+        S();                      // whatever is inside, parse it
+
+        if (token != ')')         // after the inside, a ')' MUST be here
+            error(1);             // it isn't → syntax error
+        else
+            token = nextToken();  // it is → eat it
+    }
+
+    else if (token == 'x') {      // we saw 'x' → use rule S → x
+
+        token = nextToken();      // eat the 'x'
+    }
+
+    else {                        // not '(' and not 'x'
+        error(2);                 // no rule can apply
+    }
+}</code></pre>
+
+<h4>Trace on <code>( ( ( x ) ) )</code></h4>
+
+<pre><code>S()  called, token = (          // 1st bracket
+ |   eat (                      // remaining:  ( ( x ) ) )
+ |
+ └─ S()  called, token = (      // 2nd bracket
+     |   eat (                  // remaining:  ( x ) ) )
+     |
+     └─ S()  called, token = (  // 3rd bracket
+         |   eat (              // remaining:  x ) ) )
+         |
+         └─ S()  called, token = x
+             |   eat x          // remaining:  ) ) )
+             |   return         // ← innermost finishes first
+         |
+         |   token = )  ✓  eat it    // remaining:  ) )
+         |   return             // 3rd bracket closed
+     |
+     |   token = )  ✓  eat it        // remaining:  )
+     |   return                 // 2nd bracket closed
+ |
+ |   token = )  ✓  eat it            // remaining:  (nothing)
+ |   return                     // 1st bracket closed</code></pre>
+
+<div class="card good">
+  <span class="lbl">Where the counting happened</span>
+<pre style="margin:10px 0"><code>// each S() call remembers ONE bracket
+// 3 brackets  → 3 calls waiting
+// 50 brackets → 50 calls waiting
+// the CODE never changes — the STACK just gets taller</code></pre>
+  <p>No counter variable exists anywhere. The depth <em>is</em> the call-stack height — and the stack grows as far as the input needs. <strong>That is the notepad the finite automaton in chapter 1 could never have.</strong></p>
+</div>
+
+<h4>And the failing case, <code>( ( x )</code></h4>
+
+<pre><code>token = (      S()  → eat (
+  token = (    S()  → eat (
+    token = x  S()  → eat x, return
+  token = )         → check ), eat, return
+token = EOF         → check ) → FAILS → error(1)
+
+the OUTERMOST call complains,
+because it is the one still holding an unmatched (</code></pre>
+
+<h3>One pass or many</h3>
+
+<ul>
+  <li><strong>One-pass compiler</strong> — reads the source once, generating code as it parses. Fast and light, but it can barely optimise, because it never sees the whole program at once.</li>
+  <li><strong>Multi-pass compiler</strong> — goes over the program several times. Slower, but real optimisation becomes possible.</li>
+</ul>
+
+<p class="breath">end of chapter 12</p>
+
+<!-- ═══════════════ 13 ═══════════════ -->
+<div class="chapmark" id="c13"><span class="n">Chapter 13</span><span class="lec">Lecture 14 · 27 Oct</span>
+<h2>Left recursion: the infinite loop</h2></div>
+
+<p>Everything in chapter 12 works — until you feed it the grammar from chapter 6. Then the program hangs. This is the single most important bug in top-down parsing.</p>
+
+<pre class="big"><code>E → E + T | T            ← the grammar
+
+func E() {               ← the parser you are FORCED to write
+    E();                 ← calls itself IMMEDIATELY
+    if (token != '+') error();
+    else token = nextToken();
+    T();
+}</code></pre>
+
+<pre><code>E() called
+  → E() called      (no token consumed)
+    → E() called    (no token consumed)
+      → E() called  ...
+                    STACK OVERFLOW</code></pre>
+
+<div class="card def">
+  <span class="lbl">Definition — left recursion</span>
+  <p>A rule is <strong>left-recursive</strong> when the non-terminal on the left reappears as the <strong>very first symbol</strong> on the right.</p>
+<pre style="margin:10px 0 0"><code>A → A α         ← left-recursive   ✗
+A → α A         ← right-recursive  ✓  (harmless)</code></pre>
+</div>
+
+<div class="card bad">
+  <span class="lbl">Trace it and watch it die</span>
+  <ol style="margin:0">
+    <li><code>E()</code> is called. Its first action is to call <code>E()</code>.</li>
+    <li>That <code>E()</code> is in <em>exactly the same situation</em> — <strong>no token was consumed</strong>. Its first action is to call <code>E()</code>.</li>
+    <li>…forever, until the call stack overflows.</li>
+  </ol>
+  <p>The parser never even glances at the input. No base case, because nothing ever makes progress.</p>
+</div>
+
+<p class="plain"><b>The sentence to write in an exam</b>Left recursion makes a recursive descent parser loop infinitely, because the recursive call occurs before any input is consumed, so the parser never makes progress and the recursion never terminates.</p>
+
+<p>Only the <em>first</em> position matters. If anything gets consumed before the recursive call, the parser makes progress and terminates.</p>
+
+<div class="card warn">
+  <span class="lbl">And you cannot simply avoid writing it</span>
+  <p>Chapter 7: left-associative operators <strong>force</strong> left recursion. Your notes say exactly this — <em>"left recursion occurs due to left associative operators"</em>. Since <code>−</code> and <code>/</code> must be left-associative, the natural grammar is always left-recursive.</p>
+  <p>So we cannot avoid writing it. We must <em>transform</em> it.</p>
+</div>
+
+<p class="plain"><b>Your lecture's own framing</b>The page opens: <code>E → E + T | T</code> — "left recursion, which can't be handled in top-down parser". That is the whole chapter in one line.</p>
+
+<p class="breath">end of chapter 13</p>
+
+<!-- ═══════════════ 14 ═══════════════ -->
+<div class="chapmark" id="c14"><span class="n">Chapter 14</span><span class="lec">Lecture 14 · 27 Oct</span>
+<h2>The removal recipe</h2></div>
+
+<pre class="big"><code>BEFORE              AFTER
+───────             ─────
+A → A α | β         A  → β A′
+                    A′ → α A′ | ε</code></pre>
+
+<table>
+  <tr><th>Symbol</th><th>What it is</th><th>How to spot it</th></tr>
+  <tr><td><code>α</code> (alpha)</td><td>what follows the recursive <code>A</code></td><td>in <code>A → A + T</code>, α = <code>+ T</code></td></tr>
+  <tr><td><code>β</code> (beta)</td><td>the alternative that does <em>not</em> start with <code>A</code></td><td>in <code>A → A + T | T</code>, β = <code>T</code></td></tr>
+  <tr><td><code>A′</code> (A-prime)</td><td>a brand-new helper non-terminal</td><td>you invent it</td></tr>
+  <tr><td><code>ε</code> (epsilon)</td><td>nothing — the stopping case</td><td>always in the <code>A′</code> rule</td></tr>
+</table>
+
+<p class="plain"><b>From your notes</b><em>"α, β — any string, non-terminal, terminals."</em> They stand for whatever happens to be there; the recipe does not care what.</p>
+
+<div class="card why">
+  <span class="lbl">What the recipe is actually saying</span>
+<pre style="margin:10px 0"><code>A → A α | β     means:   one β, then any number of α's
+
+                         β α α α α …
+
+your notes write this as   β α*</code></pre>
+  <p>The old rule built that string <em>backwards</em> — stacking α's on the left before finally reaching β. The new rule builds it <em>forwards</em>: β first, then α's one at a time. Same strings, read left to right instead of right to left.</p>
+</div>
+
+<h3>The picture from your notes</h3>
+
+<div class="cols">
+  <div class="col no">
+    <h5>Before — leans left</h5>
+<pre><code>        A
+      ╱   ╲
+     A     α
+   ╱   ╲
+  A     α
+  │
+  β
+
+grows DOWN-LEFT
+→ the parser must
+  descend forever
+  before seeing β</code></pre>
+  </div>
+  <div class="col ok">
+    <h5>After — leans right</h5>
+<pre><code>     A
+   ╱   ╲
+  β     A′
+      ╱    ╲
+     α      A′
+          ╱    ╲
+         α      ε
+
+β is seen FIRST
+→ input is consumed
+  immediately</code></pre>
+  </div>
+</div>
+
+<div class="card warn">
+  <span class="lbl">The ε is not optional</span>
+  <p><code>A′ → α A′ | ε</code></p>
+  <p>Without <code>| ε</code> the helper could never stop — it would demand an infinite supply of α's. The ε is the permission to finish.</p>
+</div>
+
+<p class="breath">end of chapter 14</p>
+
+<!-- ═══════════════ 15 ═══════════════ -->
+<div class="chapmark" id="c15"><span class="n">Chapter 15</span><span class="lec">Lecture 14 · 27 Oct</span>
+<h2>Worked removals</h2></div>
+
+<h3>15.1 The expression grammar</h3>
+
+<pre class="big"><code>GIVEN
+    E → E + T | T
+    T → T * P | P
+    P → a | b | c</code></pre>
+
+<h4>Rule 1 — <code>E → E + T | T</code></h4>
+
+<pre><code>α = + T          (what follows the recursive E)
+β = T            (the non-recursive alternative)
+
+A  → β A′     ⇒    E  → T E′
+A′ → α A′ | ε ⇒    E′ → + T E′ | ε</code></pre>
+
+<h4>Rule 2 — <code>T → T * P | P</code></h4>
+
+<pre><code>α = * P
+β = P
+                   T  → P T′
+                   T′ → * P T′ | ε</code></pre>
+
+<h4>Rule 3 — <code>P → a | b | c</code></h4>
+
+<pre><code>no alternative starts with P  →  nothing to do</code></pre>
+
+<div class="card good">
+  <span class="lbl">Final answer</span>
+<pre style="margin:0"><code>E  → T E′
+E′ → + T E′ | ε
+T  → P T′
+T′ → * P T′ | ε
+P  → a | b | c</code></pre>
+</div>
+
+<h3>15.2 Several α's, several β's</h3>
+
+<pre class="big"><code>GENERAL FORM
+    A → A α₁ | A α₂ | … | β₁ | β₂ | …
+
+RESULT
+    A  → β₁ A′ | β₂ A′ | …
+    A′ → α₁ A′ | α₂ A′ | … | ε</code></pre>
+
+<p class="plain"><b>In words</b>Every β gets an <code>A′</code> glued to its end. Every α moves into <code>A′</code>. One ε at the bottom.</p>
+
+<pre><code>worked — A → A + B | x | y
+
+α₁ = + B
+β₁ = x        β₂ = y
+
+A  → x A′ | y A′
+A′ → + B A′ | ε</code></pre>
+
+<details>
+  <summary>Drill — <code>A → A a | A b | c</code></summary>
+  <div class="ans">
+<pre><code>α₁ = a   α₂ = b   β = c
+
+A  → c A′
+A′ → a A′ | b A′ | ε
+
+check on input  c a b :
+A ⇒ c A′ ⇒ c a A′ ⇒ c a b A′ ⇒ c a b   ✓</code></pre>
+  </div>
+</details>
+
+<h3>15.3 The four-level chain</h3>
+
+<pre class="big"><code>GIVEN
+    A → A $ B | B
+    B → B # C | C
+    C → C @ D | D
+    D → d</code></pre>
+
+<p>Three left-recursive rules. Treat each one <strong>separately</strong> — they do not interfere.</p>
+
+<table>
+  <tr><th>Rule</th><th>α</th><th>β</th><th>Becomes</th></tr>
+  <tr><td><code>A → A $ B | B</code></td><td><code>$ B</code></td><td><code>B</code></td><td><code>A → B A′</code><br><code>A′ → $ B A′ | ε</code></td></tr>
+  <tr><td><code>B → B # C | C</code></td><td><code># C</code></td><td><code>C</code></td><td><code>B → C B′</code><br><code>B′ → # C B′ | ε</code></td></tr>
+  <tr><td><code>C → C @ D | D</code></td><td><code>@ D</code></td><td><code>D</code></td><td><code>C → D C′</code><br><code>C′ → @ D C′ | ε</code></td></tr>
+  <tr><td><code>D → d</code></td><td>—</td><td>—</td><td>unchanged</td></tr>
+</table>
+
+<div class="card good">
+  <span class="lbl">Final grammar</span>
+<pre style="margin:0"><code>A  → B A′
+A′ → $ B A′ | ε
+B  → C B′
+B′ → # C B′ | ε
+C  → D C′
+C′ → @ D C′ | ε
+D  → d</code></pre>
+</div>
+
+<p class="plain"><b>Notice</b>This is the layered expression grammar in disguise — <code>$</code>, <code>#</code>, <code>@</code> are three precedence levels with odd names. Four layers, four rules, three removals.</p>
+
+<h3>15.4 The other examples from your page</h3>
+
+<pre><code>A → A + B | x          ⇒   A  → x A′
+                           A′ → + B A′ | ε
+
+A → B + c | B − c           no left recursion —
+    | B * c                 the right sides start with B,
+                            a DIFFERENT non-terminal
+
+S → ( L ) | x               no left recursion
+L → L S | S            ⇒   L  → S L′
+                           L′ → S L′ | ε</code></pre>
+
+<details>
+  <summary>Drill — remove left recursion from <code>C → C @ D | D</code> and <code>D → d</code>.</summary>
+  <div class="ans">
+<pre><code>α = @ D ,  β = D
+
+C  → D C′
+C′ → @ D C′ | ε
+D  → d</code></pre>
+  </div>
+</details>
+
+<p class="breath">end of chapter 15</p>
+
+<!-- ═══════════════ 16 ═══════════════ -->
+<div class="chapmark" id="c16"><span class="n">Chapter 16</span><span class="lec">Lecture 14 · 27 Oct</span>
+<h2>Writing the code — and the ε bug</h2></div>
+
+<pre class="big"><code>GRAMMAR                   PARSER
+A  → B A′                 func A() {
+                              B();
+                              A1();
+                          }
+
+A′ → $ B A′ | ε           func A1() {
+                              if (token == '$') {
+                                  token = nextToken();
+                                  B();
+                                  A1();
+                              }
+                              // else: ε — just return
+                          }</code></pre>
+
+<div class="card bad">
+  <span class="lbl">The wrong version — your notes show both; this is the trap</span>
+<pre style="margin:10px 0"><code>func A1() {
+    if (token != '$')
+        error();              ✗ WRONG
+    else
+        token = nextToken();
+    B();
+    A1();
+}</code></pre>
+  <p>This demands a <code>$</code> every single time. But <code>A′</code> has an <strong>ε alternative</strong> — "no more <code>$</code>" is a perfectly legal outcome. This version rejects valid input and never terminates.</p>
+</div>
+
+<div class="card good">
+  <span class="lbl">The rule to carry away</span>
+<pre style="margin:0"><code>non-terminal WITH an ε alternative
+    → the mismatch branch is  RETURN
+
+non-terminal WITHOUT an ε alternative
+    → the mismatch branch is  error(n)</code></pre>
+  <p>Every helper produced by left-recursion removal has an ε. So every one of them returns quietly.</p>
+</div>
+
+<details>
+  <summary>Drill — write <code>E()</code> and <code>E1()</code> for <code>E → T E′</code>, <code>E′ → + T E′ | ε</code>.</summary>
+  <div class="ans">
+<pre><code>func E() {
+    T();
+    E1();
+}
+
+func E1() {
+    if (token == '+') {
+        token = nextToken();
+        T();
+        E1();
+    }
+    // else ε
+}</code></pre>
+  </div>
+</details>
+
+<div class="card warn">
+  <span class="lbl">What the transformation costs you</span>
+  <p>The new grammar is <strong>right</strong>-recursive, so its tree leans right — and <code>8 − 3 − 2</code> would group as <code>8 − (3 − 2)</code>, which is <em>wrong</em>. The set of accepted programs is identical, but the <em>structure</em> changed.</p>
+  <p>Real parsers fix this in the code instead of the grammar, with a <strong>loop</strong> that folds each new operand onto the left of what has been built so far:</p>
+<pre style="margin:12px 0 0"><code>func E() {
+    result = T();
+    while (token == '+' || token == '−') {
+        op    = token;  token = nextToken();
+        right = T();
+        result = makeNode(op, result, right);   // leans LEFT ✓
+    }
+    return result;
+}</code></pre>
+</div>
+
+<h3>Which rules are already safe?</h3>
+
+<p>Your notes mark <code>P → F ^ P | F</code> with "no left recursion" — correct, and worth knowing why. The right-hand side starts with <code>F</code>, a <em>different</em> non-terminal, so <code>P()</code> calls <code>F()</code> and consumes input before any recursion happens.</p>
+
+<p>Right-recursive rules are fine for recursive descent as written. A happy accident: because <code>^</code> is right-associative, it needs no surgery at all.</p>
+
+<p class="breath">end of chapter 16</p>
+
+<!-- ═══════════════ 17 ═══════════════ -->
+<div class="chapmark" id="c17"><span class="n">Chapter 17</span><span class="lec">Lecture 14 · 27 Oct</span>
+<h2>Indirect left recursion</h2></div>
+
+<pre class="big"><code>E → E + T | T       ← obvious: E starts with E
+T → E − T | F       ← T starts with E …
+F → E * F | id      ← … and E starts with T, which starts with E</code></pre>
+
+<p>No rule here says <code>T → T …</code>. But follow the chain:</p>
+
+<pre><code>T  →  E − T  →  (E + T) − T  →  ((E + T) + T) − T  →  …
+
+T reaches itself. Just not in one step.</code></pre>
+
+<div class="card def">
+  <span class="lbl">Definition — indirect left recursion</span>
+  <p><code>A</code> is left-recursive if <code>A ⇒* A ω</code> — meaning <code>A</code> can reach a form starting with <code>A</code> in <strong>one or more</strong> steps. The one-step case is <em>direct</em>; anything longer is <em>indirect</em>.</p>
+  <p>It crashes the parser exactly the same way. The recipe from chapter 14 cannot see it.</p>
+</div>
+
+<h3>The algorithm</h3>
+
+<pre class="big"><code>1. Number the non-terminals:  A₁, A₂, A₃ …
+
+2. For i = 1 to n:
+       For j = 1 to i−1:
+           wherever  Aᵢ → Aⱼ γ ,
+           replace Aⱼ with its full right-hand side   ← SUBSTITUTE
+       Remove direct left recursion from Aᵢ           ← chapter 14</code></pre>
+
+<p class="plain"><b>The idea in one line</b>Substitution turns hidden left recursion into <em>visible</em> left recursion. Then you already know what to do.</p>
+
+<h3>Worked, step by step</h3>
+
+<pre><code>GIVEN                     ORDER
+    E → E + T | T             A₁ = E
+    T → E − T | F             A₂ = T
+    F → E * F | id            A₃ = F</code></pre>
+
+<h4>Step 1 — handle E (nothing earlier to substitute)</h4>
+
+<pre><code>E → E + T | T          α = + T ,  β = T
+
+E  → T E′
+E′ → + T E′ | ε</code></pre>
+
+<h4>Step 2 — handle T (substitute E into it first)</h4>
+
+<pre><code>T → E − T | F
+
+substitute  E → T E′ :
+
+T → T E′ − T | F       ← now the left recursion is VISIBLE
+
+α = E′ − T ,  β = F
+
+T  → F T′
+T′ → E′ − T T′ | ε</code></pre>
+
+<h4>Step 3 — handle F (substitute E, then T)</h4>
+
+<pre><code>F → E * F | id
+
+substitute  E → T E′ :        F → T E′ * F | id
+substitute  T → F T′ :        F → F T′ E′ * F | id    ← visible
+
+α = T′ E′ * F ,  β = id
+
+F  → id F′
+F′ → T′ E′ * F F′ | ε</code></pre>
+
+<div class="card good">
+  <span class="lbl">Final grammar — no left recursion anywhere</span>
+<pre style="margin:0"><code>E  → T E′
+E′ → + T E′ | ε
+T  → F T′
+T′ → E′ − T T′ | ε
+F  → id F′
+F′ → T′ E′ * F F′ | ε</code></pre>
+</div>
+
+<h3>Second worked example</h3>
+
+<pre class="big"><code>GIVEN
+    S → S a | A b | C
+    A → S a | B c | f</code></pre>
+
+<h4>Step 1 — S (direct left recursion)</h4>
+
+<pre><code>α = a ,  β = A b | C
+
+S  → A b S′ | C S′
+S′ → a S′ | ε</code></pre>
+
+<h4>Step 2 — A (substitute S, then remove)</h4>
+
+<pre><code>A → S a | B c | f
+
+substitute  S → A b S′ | C S′ :
+
+A → A b S′ a | C S′ a | B c | f      ← visible now
+
+α = b S′ a
+β = C S′ a  |  B c  |  f
+
+A  → C S′ a A′ | B c A′ | f A′
+A′ → b S′ a A′ | ε</code></pre>
+
+<div class="card warn">
+  <span class="lbl">Two things about this one</span>
+  <p><strong>Order matters.</strong> Had you processed <code>A</code> before <code>S</code>, the substitution would have gone the other way and produced a different (still correct) grammar. Fix the numbering first and follow it.</p>
+  <p><strong>A likely slip in the notes.</strong> On the page the substituted rule reads <code>A → A b S′ d | …</code>. Given <code>A → S a</code>, that trailing symbol should be <code>a</code>, not <code>d</code> — the <code>a</code> comes from the original <code>S a</code>. Check against the board if you can.</p>
+</div>
+
+<details>
+  <summary>Drill — is <code>S → ( S ) S | ε</code> left-recursive?</summary>
+  <div class="ans">
+    <p><strong>No.</strong> The first alternative begins with the terminal <code>(</code>, which is consumed before <code>S()</code> calls itself. Progress is guaranteed, so it is safe for recursive descent exactly as written.</p>
+  </div>
+</details>
+
+<p class="breath">end of chapter 17 — disease 1 is cured. Now disease 2.</p>
+
+<!-- ═══════════════ 18 ═══════════════ -->
+<div class="chapmark" id="c18"><span class="n">Chapter 18</span><span class="lec">Lecture 15 · 29 Oct</span>
+<h2>Non-determinism</h2></div>
+
+<pre class="big"><code>S → a S S b S | a b b | c
+     ▲          ▲
+     └── both start with 'a' ──┘</code></pre>
+
+<pre><code>parser sees:  a . . .
+
+which rule?   S → a S S b S  ?
+              S → a b b      ?
+
+cannot tell. must guess, then undo if wrong.</code></pre>
+
+<div class="card def">
+  <span class="lbl">Definition — non-deterministic grammar</span>
+  <p>A grammar is <strong>non-deterministic</strong> [for a predictive parser] when two or more alternatives of the same non-terminal begin with the <strong>same symbol</strong>, so one lookahead token is not enough to choose between them.</p>
+<pre style="margin:10px 0 0"><code>A → α β₁ | α β₂ | α β₃      ← the shape of the disease</code></pre>
+</div>
+
+<div class="card bad">
+  <span class="lbl">Why guessing is unacceptable</span>
+  <ul>
+    <li><strong>Speed</strong> — each wrong guess doubles the work. Exponential time in the worst case.</li>
+    <li><strong>Error messages</strong> — after undoing, the parser has thrown away where it was. It can only say "something, somewhere, is wrong".</li>
+  </ul>
+</div>
+
+<p class="plain"><b>Your notes' heading</b><em>"Another Issue in Grammar — Non-Determinism."</em> It sits right after left recursion on the page, and for good reason: they are the two things that stop you writing a recursive descent parser.</p>
+
+<p class="breath">end of chapter 18</p>
+
+<!-- ═══════════════ 19 ═══════════════ -->
+<div class="chapmark" id="c19"><span class="n">Chapter 19</span><span class="lec">Lecture 15 · 29 Oct</span>
+<h2>Left factoring</h2></div>
+
+<pre class="big"><code>BEFORE                           AFTER
+──────                           ─────
+A → α β₁ | α β₂ | … | α βₙ       A  → α A′
+                                 A′ → β₁ | β₂ | … | βₙ</code></pre>
+
+<p class="plain"><b>In words</b>Pull the shared beginning out in front. Put everything that differs into a new helper.</p>
+
+<div class="card why">
+  <span class="lbl">Why this fixes it</span>
+<pre style="margin:10px 0"><code>BEFORE:  decide the rule, THEN read α   ← impossible
+AFTER:   read α, THEN decide            ← trivial</code></pre>
+  <p>The parser no longer has to predict. It consumes the shared part first, and by the time it reaches <code>A′</code> the tokens that distinguish the alternatives are sitting right in front of it.</p>
+</div>
+
+<div class="card good">
+  <span class="lbl">Compare the two surgeries</span>
+<pre style="margin:0"><code>LEFT RECURSION         A → A α | β
+REMOVAL                A → β A′ ,  A′ → α A′ | ε
+
+LEFT FACTORING         A → α β₁ | α β₂
+                       A → α A′ ,  A′ → β₁ | β₂</code></pre>
+  <p>Both invent <code>A′</code>. The difference: removal moves the <em>repeated tail</em> into it; factoring moves the <em>differing tails</em> into it.</p>
+</div>
+
+<h3>Four worked factorings</h3>
+
+<h4>1 — common prefix is one symbol</h4>
+
+<pre><code>S → a S S b S | a b b | c
+
+common prefix of the first two:  a
+α = a    β₁ = S S b S    β₂ = b b
+c has no 'a' — it stays where it is
+
+S  → a S′ | c
+S′ → S S b S | b b</code></pre>
+
+<h4>2 — common prefix is two symbols</h4>
+
+<pre><code>S → a b S b S | a b b | c
+
+common prefix:  a b         ← take BOTH, not just 'a'
+α = a b    β₁ = S b S    β₂ = b
+
+S  → a b S′ | c
+S′ → S b S | b</code></pre>
+
+<h4>3 — factoring twice</h4>
+
+<pre><code>S → a S S b S | a S a S b | a b b | b
+
+round 1 — common prefix 'a' across all three a-rules:
+
+S  → a S′ | b
+S′ → S S b S | S a S b | b b
+
+round 2 — S′ still has two rules starting with S:
+
+S′ → S S″ | b b
+S″ → S b S | a S b</code></pre>
+
+<div class="card warn">
+  <span class="lbl">Factoring is repeated until clean</span>
+  <p>One pass is often not enough. After every factoring, re-check the new helper — it may need factoring too.</p>
+</div>
+
+<h4>4 — the general three-way</h4>
+
+<pre><code>A → α β₁ | α β₂ | α β₃
+
+A  → α A′
+A′ → β₁ | β₂ | β₃</code></pre>
+
+<h3>The examples from your page</h3>
+
+<pre><code>A → x A′ | y A′            already factored? NO —
+                           if both start with different
+                           symbols, nothing to do
+
+A → a B₁ | a B₂ | a B₃  ⇒  A  → a A′
+                           A′ → B₁ | B₂ | B₃
+
+A → A + B | x              that is LEFT RECURSION,
+                           not a factoring problem —
+                           chapter 14</code></pre>
+
+<p class="breath">end of chapter 19</p>
+
+<!-- ═══════════════ 20 ═══════════════ -->
+<div class="chapmark" id="c20"><span class="n">Chapter 20</span><span class="lec">Lecture 15 · 29 Oct</span>
+<h2>Longest common prefix</h2></div>
+
+<p>Forget grammars for a moment.</p>
+
+<pre class="big"><code>three words:
+
+   CATALOGUE
+   CATAPULT
+   CATTLE
+
+what do ALL THREE start with?
+
+   CAT      ← C-A-T is in all three
+   CATA     ← no, CATTLE doesn't have it
+
+what do the FIRST TWO start with?
+
+   CAT      ← yes
+   CATA     ← yes!  CATALOGUE, CATAPULT
+   CATAL    ← no, CATAPULT doesn't have it
+
+so:  shared by all three  =  CAT
+     shared by first two  =  CATA     ← LONGER</code></pre>
+
+<p class="plain"><b>That is all "longest common prefix" means</b>Go as far right as you can before the words stop agreeing.</p>
+
+<h3>The same thing with grammar alternatives</h3>
+
+<pre class="big"><code>S → a b S b S | a b b | c
+
+line them up and read DOWN the columns:
+
+      a   b   S   b   S
+      a   b   b
+      c
+
+column 1:  a , a , c   →  c differs, drop it. keep the two a's.
+column 2:  b , b       →  agree
+column 3:  S , b       →  DISAGREE. stop here.
+
+longest common prefix = a b</code></pre>
+
+<pre><code>factor it out:
+
+S  → a b S′ | c       // the shared part
+S′ → S b S | b        // what was left over</code></pre>
+
+<h3>Why longest, and not just the first symbol</h3>
+
+<div class="cols">
+  <div class="col no">
+    <h5>Shortest prefix — more rounds</h5>
+<pre><code>take α = a
+
+S  → a S′ | c
+S′ → b S b S
+   | b b
+     ▲      ▲
+  still share 'b'
+  → go again
+
+S′ → b S″
+S″ → S b S | b
+
+3 rules, 2 rounds</code></pre>
+  </div>
+  <div class="col ok">
+    <h5>Longest prefix — done in one</h5>
+<pre><code>take α = a b
+
+S  → a b S′ | c
+S′ → S b S | b
+     ▲       ▲
+  S and b differ
+  → DONE
+
+2 rules, 1 round</code></pre>
+  </div>
+</div>
+
+<div class="card good">
+  <span class="lbl">The rule from your notes</span>
+  <p><em>"we take longest common"</em> — always factor out the <strong>longest</strong> prefix shared by the alternatives you are grouping, not just the first symbol.</p>
+  <p>Shortest-prefix factoring is not <em>wrong</em>; it just means more rounds. Longest gets you there faster, and that is what gets marked.</p>
+</div>
+
+<h3>The check, after every round</h3>
+
+<pre><code>look at each non-terminal's alternatives
+do any two start with the SAME symbol?
+     yes → factor again
+     no  → finished</code></pre>
+
+<div class="card warn">
+  <span class="lbl">One honest caveat</span>
+  <p>Longest-prefix does not <em>always</em> finish in one round. For <code>S → a S S b S | a S a S b | a b b | b</code> you still need two rounds either way, because after factoring out <code>a S</code> from the first two, the result and <code>a b b</code> still share an <code>a</code>. "Longest" reduces the number of rounds; it does not guarantee one.</p>
+</div>
+
+<p class="breath">end of chapter 20</p>
+
+<!-- ═══════════════ 21 ═══════════════ -->
+<div class="chapmark" id="c21"><span class="n">Chapter 21</span><span class="lec">Lecture 15 · 29 Oct</span>
+<h2>The dangling else</h2></div>
+
+<pre class="big"><code>REAL CODE — this is the whole problem
+
+if (a)
+    if (b)
+        x = 1;
+    else                  // ← which if does this else belong to?
+        x = 2;</code></pre>
+
+<div class="cols">
+  <div class="col">
+    <h5>Reading 1 — inner if</h5>
+<pre><code>if (a) {
+    if (b)  x = 1;
+    else    x = 2;
+}
+
+a = true,  b = false
+                → x = 2
+a = false
+                → nothing</code></pre>
+  </div>
+  <div class="col">
+    <h5>Reading 2 — outer if</h5>
+<pre><code>if (a) {
+    if (b)  x = 1;
+}
+else        x = 2;
+
+a = true,  b = false
+                → nothing
+a = false
+                → x = 2</code></pre>
+  </div>
+</div>
+
+<pre><code>SAME TEXT.  TWO MEANINGS.
+
+a = false  →  reading 1 does nothing
+              reading 2 sets x = 2</code></pre>
+
+<h3>The grammar from your notes</h3>
+
+<pre class="big"><code>S → i E t S | i E t S e S | a
+E → b
+
+i = if      E = condition      t = then
+e = else    a = any other statement</code></pre>
+
+<pre><code>the parser's problem:
+
+   token = i   →  which rule?
+
+   S → i E t S        ?
+   S → i E t S e S    ?
+
+both start with  i E t S
+the 'e' that tells them apart is MILES away
+one lookahead token is useless here</code></pre>
+
+<h3>Factor it</h3>
+
+<pre class="big"><code>common prefix:  i E t S       ← the longest shared part
+
+α  = i E t S
+β₁ = ε          (the first rule ends exactly at the prefix)
+β₂ = e S
+
+S  → i E t S S′ | a
+S′ → e S | ε
+E  → b</code></pre>
+
+<pre><code>now the parser works:
+
+   read  i E t S         // no decision needed
+   reach S′
+   if (token == 'e')  →  there IS an else
+   else               →  ε, no else</code></pre>
+
+<div class="card warn">
+  <span class="lbl">What this fixes — and what it does not</span>
+  <p><strong>Fixed:</strong> the parser can now proceed. It reads <code>i E t S</code>, arrives at <code>S′</code>, and asks one question — is the next token <code>e</code>?</p>
+  <p><strong>Not fixed:</strong> the <em>ambiguity</em> is still there. In the nested case, when <code>S′</code> sees an <code>e</code>, the <strong>inner</strong> <code>S′</code> and the <strong>outer</strong> <code>S′</code> are both waiting and both would accept it.</p>
+</div>
+
+<h3>So you are facing two problems at once</h3>
+
+<pre class="big"><code>PROBLEM 1 — NON-DETERMINISM        "I can't pick a rule"
+
+   S → i E t S          both start with  i E t S
+   S → i E t S e S      parser is stuck at the very first 'i'
+
+PROBLEM 2 — AMBIGUITY              "I picked rules, but two ways work"
+
+   tree A: else under INNER if
+   tree B: else under OUTER if
+   both are legal derivations of the same string</code></pre>
+
+<pre><code>AFTER LEFT FACTORING
+
+   problem 1:  FIXED       ✓
+   problem 2:  STILL THERE ✗</code></pre>
+
+<h3>The fix for problem 2</h3>
+
+<div class="card good">
+  <span class="lbl">A rule bolted on from outside the grammar</span>
+<pre style="margin:10px 0"><code>an ELSE binds to the NEAREST UNMATCHED IF</code></pre>
+  <p>So Reading 1 wins. Every real language does this. In practice the parser is simply told: when <code>S′</code> sees <code>e</code>, <strong>take it</strong> — and the inner <code>S′</code> grabs it because it asks first.</p>
+  <p>That is a <em>decision</em>, not a derivation. The grammar stays ambiguous forever; the parser is given a tie-breaker. (Chapter 9's precedence declarations are the same idea.)</p>
+</div>
+
+<p class="plain"><b>The distinction worth keeping</b>Left factoring cures <em>non-determinism</em> (can the parser choose?). It does not cure <em>ambiguity</em> (does the string have one meaning?). Different diseases, different cures.</p>
+
+<p class="breath">end of chapter 21</p>
+
+<!-- ═══════════════ 22 ═══════════════ -->
+<div class="chapmark" id="c22"><span class="n">Chapter 22</span>
+<h2>Cheat sheet</h2></div>
+
+<h3>The story, start to finish</h3>
+
+<ol class="steps">
+  <li><strong>Regular expressions describe tokens</strong> — but cannot describe nesting, because a finite machine has no notepad and cannot count without a bound.</li>
+  <li><strong>Grammars describe structure.</strong> G = (N, T, S, P). Recursion in the rules gives nesting to any depth.</li>
+  <li><strong>A derivation</strong> rewrites from the start symbol to terminals. <strong>A parse tree</strong> shows the same thing as structure, and the tree is what the compiler uses.</li>
+  <li><strong>Ambiguity</strong> = two parse trees for one string = two meanings. Fatal: no top-down parser can be written.</li>
+  <li><strong>Precedence</strong> is fixed by <strong>layering</strong>: one non-terminal per level, loosest at the top, atoms at the bottom.</li>
+  <li><strong>Associativity</strong> is fixed by <strong>which side the recursion sits on</strong>. Left recursion → left-associative; right recursion → right-associative.</li>
+  <li><strong>Recursive descent</strong>: one function per non-terminal, one if-check per terminal, an error index at every failure point.</li>
+  <li><strong>Left recursion</strong> makes that parser loop forever. Remove it, then restore left-grouping with a loop.</li>
+  <li><strong>Non-determinism</strong> stops the parser choosing. Left-factor it.</li>
+</ol>
+
+<h3>The two recipes</h3>
+
+<pre class="big"><code>LEFT RECURSION REMOVAL
+    A → A α₁ | A α₂ | β₁ | β₂
+    ⇒   A  → β₁ A′ | β₂ A′
+        A′ → α₁ A′ | α₂ A′ | ε
+
+LEFT FACTORING
+    A → α β₁ | α β₂ | γ
+    ⇒   A  → α A′ | γ
+        A′ → β₁ | β₂</code></pre>
+
+<h3>Indirect left recursion — the procedure</h3>
+
+<ol class="steps">
+  <li>Number the non-terminals <code>A₁ … Aₙ</code> and keep that order.</li>
+  <li>For each <code>Aᵢ</code>, substitute every earlier <code>Aⱼ</code> (j &lt; i) appearing at the front of one of its rules.</li>
+  <li>The left recursion is now visible. Remove it with the direct recipe.</li>
+  <li>Move to <code>Aᵢ₊₁</code>.</li>
+</ol>
+
+<h3>Which error branch?</h3>
+
+<table>
+  <tr><th>Non-terminal</th><th>Mismatch branch</th></tr>
+  <tr><td>has an <code>ε</code> alternative</td><td><code>return</code> — quietly</td></tr>
+  <tr><td>no <code>ε</code> alternative</td><td><code>error(n)</code></td></tr>
+</table>
+
+<h3>Three things that get confused in exams</h3>
+
+<table>
+  <tr><th>Problem</th><th>Symptom</th><th>Cure</th></tr>
+  <tr><td><strong>Ambiguity</strong></td><td>one string, two parse trees</td><td>layering — by hand, no algorithm exists</td></tr>
+  <tr><td><strong>Left recursion</strong></td><td>parser loops forever</td><td><code>A → β A′, A′ → α A′ | ε</code></td></tr>
+  <tr><td><strong>Non-determinism</strong></td><td>parser cannot choose a rule</td><td>left factoring</td></tr>
+</table>
+
+<h3>Order of operations</h3>
+
+<pre><code>1. remove ambiguity      (layering)
+2. remove left recursion
+3. left factor
+4. NOW write the recursive descent parser</code></pre>
+
+<p>In that order. Removing left recursion can create new common prefixes, so factoring comes after — not before.</p>
+
+<h3>Definitions to write cold</h3>
+
+<table>
+  <tr><th>Term</th><th>One line</th></tr>
+  <tr><td>Context-free grammar</td><td>G = (N, T, S, P); every rule has a single non-terminal on the left</td></tr>
+  <tr><td>Derivation</td><td>sequence of rewrites from S to a string of terminals</td></tr>
+  <tr><td>Sentential form</td><td>a half-finished line that still contains non-terminals</td></tr>
+  <tr><td>Leftmost derivation</td><td>always expands the leftmost non-terminal</td></tr>
+  <tr><td>Parse tree</td><td>root is S, internal nodes are non-terminals, leaves spell the input</td></tr>
+  <tr><td>AST</td><td>the parse tree with helper non-terminals and brackets stripped out</td></tr>
+  <tr><td>Semantic action</td><td>code attached to a rule, run when the rule is applied</td></tr>
+  <tr><td>Ambiguous grammar</td><td>some string has two or more distinct parse trees</td></tr>
+  <tr><td>Inherently ambiguous language</td><td>a language for which no unambiguous grammar exists</td></tr>
+  <tr><td>Top-down parsing</td><td>builds the tree from the root toward the tokens</td></tr>
+  <tr><td>Bottom-up parsing</td><td>builds the tree from the tokens toward the root</td></tr>
+  <tr><td>Backtracking</td><td>undoing a wrong rule choice; slow, so avoided</td></tr>
+  <tr><td>Lookahead</td><td>peeking at upcoming tokens without consuming them</td></tr>
+  <tr><td>Recursive descent</td><td>top-down parser written as one function per non-terminal</td></tr>
+  <tr><td>Left recursion</td><td><code>A → A α</code>; causes infinite recursion in a top-down parser</td></tr>
+  <tr><td>Non-determinism</td><td>two alternatives of one non-terminal start with the same symbol</td></tr>
+  <tr><td>Left factoring</td><td>pulling the longest common prefix into a new helper non-terminal</td></tr>
+  <tr><td>LL(1)</td><td>left-to-right scan, leftmost derivation, one token of lookahead</td></tr>
+  <tr><td>Dangling else</td><td>an else that two ifs could both claim; resolved by "nearest unmatched if"</td></tr>
+</table>
+
+<h3>The grammar to reproduce from memory</h3>
+
+<pre><code>E → E + T | E − T | T          + and −  : loosest, LEFT-associative
+T → T * P | T / P | P          * and /  : tighter, LEFT-associative
+P → F ^ P | F                  ^        : tightest op, RIGHT-associative
+F → int   | ( E )              atoms, and the bracket escape hatch</code></pre>
+
+<p>From this alone you should be able to: draw the tree for any expression; show it is unambiguous; remove its left recursion; write the recursive descent functions.</p>
+
+<h3>What comes next in the course</h3>
+
+<ul>
+  <li><strong>FIRST and FOLLOW sets</strong> — the formal test for whether one lookahead token really is enough.</li>
+  <li><strong>LL(1) parsing tables</strong> — recursive descent turned into a table plus a loop, exactly as the scanner was in Part 1, chapter 20. These transformations are its entry requirements.</li>
+  <li><strong>LR parsing</strong> (SLR, LALR) — bottom-up; handles left recursion natively, so none of this surgery is needed there. This is what <code>yacc</code> and <code>bison</code> generate.</li>
+</ul>
+
+<h3>Things to verify against your slides</h3>
+
+<div class="card warn">
+  <span class="lbl">Three small discrepancies</span>
+  <ol style="margin:0">
+    <li>On the 27 Oct page, the substituted rule reads <code>A → A b S′ d | …</code>. Given <code>A → S a</code>, that should be <code>a</code>, not <code>d</code>. Chapter 17 uses <code>a</code>.</li>
+    <li>Your balanced-bracket rules appear as <code>P → P S | ε</code> and <code>P → ( S )</code>. The second needs a <em>different</em> non-terminal on the left (<code>S → ( P )</code>), or the layers collapse.</li>
+    <li>The slides use <code>E → T | T + E</code> (right-recursive); your notes use <code>E → E + T | T</code> (left-recursive). Both correct — the slides chose theirs to dodge the left-recursion problem.</li>
+  </ol>
+</div>
+
+<footer>
+  <p>Part 2 of 2. Built from class notes for lectures 13–15 (20 October – 29 October 2026, Dr. Syed M. Naqi) together with the <em>Syntax Analysis</em> and <em>Top-down Parsing</em> slide decks. Lectures 1–9 — compiler structure, language definition and the scanner — are in Part 1.</p>
+</footer>
+
+</div>
+</body>
+</html>

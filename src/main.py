@@ -27,7 +27,18 @@ with open(cmm_file, "r") as file:
 # check main.cmm file's data type
 # print(type(source))     # <class 'str'>
 
-tokens = Lexer(source=source).scan_tokens()  # list of tokens
+lexer: Lexer = Lexer(source=source)
+tokens: list = lexer.scan_tokens()  # list of tokens
 
+# print tokens
 for token in tokens:
     print(token)
+
+# handle error (print errors separately after tokenization is successfully printed)
+# this is just for error logs
+if lexer.errors:
+    print(f"\n--- Lexical Errors ({len(lexer.errors)}) ---")
+    for error in lexer.errors:
+        print(error)
+else:
+    print(f"\n--- Successfully scanned {len(tokens)} tokens with 0 errors! ---")
