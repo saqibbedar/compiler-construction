@@ -1,9 +1,45 @@
-for321while$<)== = 10;
-/* multiline character */
+# --- Previous Lexer Edge Case Tests ---
 # for321while$<)== = 10;
-#_for$while---7.34-y$fn
-#_for$while---7.34.4-y$fn
-#for---7.3+7AB.C
-#_!xyz$79l..5.5ABC_.x$**2
-"Hello World\n";
-# `{x} and {y} but {z}`
+# /* multiline character */
+for321while$<)== = 10;
+# #_for$while---7.34-y$fn
+# #_for$while---7.34.4-y$fn
+# #for---7.3+7AB.C
+# #_!xyz$79l..5.5ABC_.x$**2
+# "Hello World\n";
+# # `{x} and {y} but {z}`
+
+fn greet(name: str) -> str:
+    message = `Hello, {name}`
+    return message
+
+fn calculate(a: int, b: int) -> int:
+    result = (
+        a
+        + b
+    )
+    return result
+
+# Variable declarations and assignments
+x: int = 10
+price: float = 19.5
+total = calculate(x, 20)
+
+# Conditional statements with indentation and dedentation
+if total > 20:
+    status = "high"
+    print(`Status is {status}`)
+elif total == 20:
+    status = "equal"
+else:
+    status = "low"
+
+# Nested loops
+for i in 0..10:
+    while x < 15:
+        x += 1
+
+# Arrow function
+add = (a: int, b: int): int => a + b
+
+print(greet("Bedar"))

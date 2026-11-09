@@ -25,6 +25,15 @@ class Lexer:
         # Stack tracking brace depth inside backtick interpolation expressions
         self.interpolation_brace_depths: list[int] = []
 
+        # Indentation stack tracking indentation levels (measured in spaces)
+        self.indent_stack: list[int] = [0]
+
+        # Nesting depth for grouping delimiters: (), [], and {} (outside backtick text)
+        self.delimiter_depth: int = 0
+
+        # State tracking whether the scanner is at the start of a logical line
+        self.at_line_start: bool = True
+
     # Main scanner function
     def scan_tokens(self) -> list[Token]:
         # token collector
@@ -35,10 +44,16 @@ class Lexer:
         - self.source string (provided source), loop through it until last character or word
         """
         while self.position < len(self.source):
+            # 0. Handle line-start indentation when outside grouping delimiters
+            if self.at_line_start and self.delimiter_depth == 0:
+                self._handle_line_start(tokens)
+                if self.position >= len(self.source):
+                    break
+
             # get character from str
             char: str = self.source[self.position]
 
-            # 1. Skip spaces & carriage returns
+            # 1. Skip spaces & carriage returns within a line
             if char in " \t\r":
                 self._advance()
                 continue
@@ -46,39 +61,57 @@ class Lexer:
             # 1b. singleline comment (#...)
             if char == "#":
                 # Consume until physical newline or end of file
-
                 while self.position < len(self.source) and self.source[self.position] != "\n":
                     self._advance()
                 continue
 
             # 2. Physical newline
             if char == "\n":
-                tokens.append(Token(TokenType.NEWLINE, "\n", self.line, self.column))
+                line = self.line
+                col = self.column
                 self._advance()
+
+                if self.delimiter_depth > 0:
+                    # Inside (), [], {} grouping delimiters: newlines are ignored (implicit continuation)
+                    continue
+
+                # Logical NEWLINE terminates statement:
+                # Only emit if previous token was not already a NEWLINE or INDENT
+                if tokens and tokens[-1].type not in (TokenType.NEWLINE, TokenType.INDENT):
+                    tokens.append(Token(TokenType.NEWLINE, "\n", line, col))
+
+                self.at_line_start = True
                 continue
 
             # 3. Delimiters (single characters)
             if char == "(":
+                self.delimiter_depth += 1
                 tokens.append(Token(TokenType.LPAREN, "(", self.line, self.column))
                 self._advance()
                 continue
 
             if char == ")":
+                if self.delimiter_depth > 0:
+                    self.delimiter_depth -= 1
                 tokens.append(Token(TokenType.RPAREN, ")", self.line, self.column))
                 self._advance()
                 continue
 
             if char == "[":
+                self.delimiter_depth += 1
                 tokens.append(Token(TokenType.LBRACKET, "[", self.line, self.column))
                 self._advance()
                 continue
 
             if char == "]":
+                if self.delimiter_depth > 0:
+                    self.delimiter_depth -= 1
                 tokens.append(Token(TokenType.RBRACKET, "]", self.line, self.column))
                 self._advance()
                 continue
 
             if char == "{":
+                self.delimiter_depth += 1
                 if self.interpolation_brace_depths:
                     self.interpolation_brace_depths[-1] += 1
                 tokens.append(Token(TokenType.LBRACE, "{", self.line, self.column))
@@ -86,6 +119,8 @@ class Lexer:
                 continue
 
             if char == "}":
+                if self.delimiter_depth > 0:
+                    self.delimiter_depth -= 1
                 if self.interpolation_brace_depths:
                     self.interpolation_brace_depths[-1] -= 1
                     tokens.append(Token(TokenType.RBRACE, "}", self.line, self.column))
@@ -297,15 +332,207 @@ class Lexer:
             self.errors.append(err)
             tokens.append(Token(TokenType.ERROR, "", self.line, self.column))
 
-        # Terminate a final non-empty statement even without a trailing
-        # physical newline.
-        # Trailing newline and EOF
-        if tokens and tokens[-1].type != TokenType.NEWLINE:
+        # Check if a grouping delimiter was left unclosed at EOF
+        if self.delimiter_depth > 0:
+            err = LexicalError(
+                message="Unclosed grouping delimiter at end of file",
+                lexeme="",
+                line=self.line,
+                column=self.column,
+            )
+            self.errors.append(err)
+            tokens.append(Token(TokenType.ERROR, "", self.line, self.column))
+
+        # Terminate a final statement with NEWLINE if needed
+        if tokens and tokens[-1].type not in (TokenType.NEWLINE, TokenType.DEDENT):
             tokens.append(Token(TokenType.NEWLINE, "", self.line, self.column))
+
+        # Drain any remaining indentation levels from indent_stack
+        while len(self.indent_stack) > 1:
+            self.indent_stack.pop()
+            tokens.append(Token(TokenType.DEDENT, "", self.line, self.column))
 
         tokens.append(Token(TokenType.EOF, "", self.line, self.column))
 
         return tokens
+
+    # =====================================================
+    # Internal methods: Indentation & Line Handling
+    # =====================================================
+
+    def _peek_line_indentation(self) -> tuple[int, bool, int | None]:
+        """
+        Inspect the leading whitespace from self.position up to the first non-whitespace character.
+        Returns:
+            (indent_count, has_tab, first_non_whitespace_index)
+            If the line is blank (only whitespace followed by \\n or EOF), first_non_whitespace_index is None.
+        """
+        idx = self.position
+        indent_count = 0
+        has_tab = False
+
+        while idx < len(self.source):
+            c = self.source[idx]
+            if c == " ":
+                indent_count += 1
+                idx += 1
+            elif c == "\t":
+                has_tab = True
+                indent_count += 4
+                idx += 1
+            elif c == "\r":
+                idx += 1
+            elif c == "\n":
+                return indent_count, has_tab, None
+            else:
+                return indent_count, has_tab, idx
+
+        return indent_count, has_tab, None
+
+    def _is_block_comment_alone_on_line(self, start_idx: int) -> bool:
+        """
+        Check if the block comment starting at start_idx has no code after it on the same line.
+        """
+        end_idx = self.source.find("*/", start_idx + 2)
+        if end_idx == -1:
+            return False
+        after_comment = end_idx + 2
+        while after_comment < len(self.source):
+            ch = self.source[after_comment]
+            if ch in " \t\r":
+                after_comment += 1
+            elif ch == "\n":
+                return True
+            else:
+                return False
+        return True
+
+    def _consume_blank_line(self) -> None:
+        while self.position < len(self.source) and self.source[self.position] != "\n":
+            self._advance()
+        if self.position < len(self.source) and self.source[self.position] == "\n":
+            self._advance()
+
+    def _consume_comment_line(self) -> None:
+        while self.position < len(self.source) and self.source[self.position] != "\n":
+            self._advance()
+        if self.position < len(self.source) and self.source[self.position] == "\n":
+            self._advance()
+
+    def _consume_block_comment_line(self) -> None:
+        # Advance through whitespace before /*
+        while self.position < len(self.source) and self.source[self.position] in " \t\r":
+            self._advance()
+        # Advance through /*
+        self._advance()
+        self._advance()
+        while self.position < len(self.source):
+            if self.source[self.position] == "*" and self._peek(1) == "/":
+                self._advance()
+                self._advance()
+                break
+            self._advance()
+        # Advance through whitespace after */ up to newline
+        while self.position < len(self.source) and self.source[self.position] in " \t\r":
+            self._advance()
+        if self.position < len(self.source) and self.source[self.position] == "\n":
+            self._advance()
+
+    def _handle_line_start(self, tokens: list[Token]) -> None:
+        while self.position < len(self.source) and self.at_line_start and self.delimiter_depth == 0:
+            indent_count, has_tab, first_char_idx = self._peek_line_indentation()
+
+            # Blank line (only whitespace up to newline or EOF)
+            if first_char_idx is None:
+                self._consume_blank_line()
+                continue
+
+            first_char = self.source[first_char_idx]
+
+            # Single-line comment (#...)
+            if first_char == "#":
+                self._consume_comment_line()
+                continue
+
+            # Block comment (/*...*/) alone on line
+            if (
+                first_char == "/"
+                and first_char_idx + 1 < len(self.source)
+                and self.source[first_char_idx + 1] == "*"
+                and self._is_block_comment_alone_on_line(first_char_idx)
+            ):
+                self._consume_block_comment_line()
+                continue
+
+            # Non-blank line containing code: process indentation
+            self._process_indentation(tokens, indent_count, has_tab)
+            self.at_line_start = False
+            break
+
+    def _process_indentation(self, tokens: list[Token], current_indent: int, has_tab: bool) -> None:
+        indent_line = self.line
+        indent_col = 1
+
+        # 1. Check for tab in indentation
+        if has_tab:
+            err = LexicalError(
+                message="IndentationError: tab character found in indentation; C-- requires 4 spaces",
+                lexeme="\t",
+                line=indent_line,
+                column=indent_col,
+            )
+            self.errors.append(err)
+            tokens.append(Token(TokenType.ERROR, "\t", indent_line, indent_col))
+
+        # 2. Check for multiple of 4
+        if current_indent % 4 != 0:
+            err = LexicalError(
+                message=f"IndentationError: indentation must be a multiple of 4 spaces (got {current_indent} spaces)",
+                lexeme=" " * current_indent,
+                line=indent_line,
+                column=indent_col,
+            )
+            self.errors.append(err)
+            tokens.append(Token(TokenType.ERROR, " " * current_indent, indent_line, indent_col))
+
+        # Advance past the leading whitespace so self.position and self.column point to the first token
+        while self.position < len(self.source) and self.source[self.position] in " \t\r":
+            self._advance()
+
+        last_indent = self.indent_stack[-1]
+
+        if current_indent > last_indent:
+            # 3. Check for unexpected multi-level indent jump (e.g. from 0 directly to 8)
+            if current_indent > last_indent + 4:
+                err = LexicalError(
+                    message=f"IndentationError: unexpected indent jump from {last_indent} to {current_indent} spaces",
+                    lexeme=" " * current_indent,
+                    line=indent_line,
+                    column=indent_col,
+                )
+                self.errors.append(err)
+                tokens.append(Token(TokenType.ERROR, " " * current_indent, indent_line, indent_col))
+
+            self.indent_stack.append(current_indent)
+            tokens.append(Token(TokenType.INDENT, " " * current_indent, indent_line, indent_col))
+
+        elif current_indent < last_indent:
+            # 4. Dedent: pop until stack top <= current_indent
+            while self.indent_stack and self.indent_stack[-1] > current_indent:
+                self.indent_stack.pop()
+                tokens.append(Token(TokenType.DEDENT, "", indent_line, indent_col))
+
+            # 5. Check if unindent matches an existing outer level
+            if not self.indent_stack or self.indent_stack[-1] != current_indent:
+                err = LexicalError(
+                    message=f"IndentationError: unindent does not match any outer indentation level ({current_indent} spaces)",
+                    lexeme=" " * current_indent,
+                    line=indent_line,
+                    column=indent_col,
+                )
+                self.errors.append(err)
+                tokens.append(Token(TokenType.ERROR, " " * current_indent, indent_line, indent_col))
+                self.indent_stack.append(current_indent)
 
     # =====================================================
     # Internal methods
@@ -384,6 +611,7 @@ class Lexer:
                 tokens.append(Token(TokenType.LBRACE, "{", brace_line, brace_col))
                 self._advance()  # consume '{'
 
+                self.delimiter_depth += 1
                 self.interpolation_brace_depths.append(1)
                 return
 

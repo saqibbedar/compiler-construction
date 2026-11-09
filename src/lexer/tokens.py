@@ -24,6 +24,8 @@ class TokenType(IntEnum):
     STRING = auto()
     BOOL = auto()
     NEWLINE = auto()
+    INDENT = auto()
+    DEDENT = auto()
     EOF = auto()
     ERROR = auto()
 
