@@ -1,0 +1,23 @@
+# Invalid expression: separated comparison and assignment operators
+bad_comparison = a < = b
+
+# Invalid expression: adjacent operators in an unexpected order
+bad_arithmetic = 10 + * 2
+
+# Invalid statement: missing colon before the indented body
+if ready
+    recovered_if = 1
+
+# Invalid loop: missing colon before the indented body
+for item in items
+    recovered_for = item
+
+# Invalid function header: missing comma between parameters
+fn broken(first: int second: int):
+    return first + second
+
+# Valid statement after malformed input, to exercise parser recovery
+after_errors = 42
+
+# Final invalid expression: missing closing parenthesis
+bad_call = calculate(1, 2

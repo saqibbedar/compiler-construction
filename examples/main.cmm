@@ -8,7 +8,7 @@
 # #_!xyz$79l..5.5ABC_.x$**2
 # "Hello World\n";
 # # `{x} and {y} but {z}`
-_for0---0if\_pc${ab$#}
+# _for0---0if\_pc${ab$#}
 
 fn greet(name: str) -> str:
     message = `Hello, {name}`
